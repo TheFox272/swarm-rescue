@@ -61,3 +61,10 @@ MANIFEST
 .venv*/
 .conda*/
 .python-version
+
+# Sphinx files
+src/_build
+src/_static
+src/_templates
+src/make.bat
+src/Makefile

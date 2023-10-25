@@ -1,16 +1,17 @@
-"""
-A little drone
-"""
 import math
 import random
 from typing import Optional
+
+import sys, os
+# This line add, to sys.path, the path to parent path of this file
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 from spg_overlay.entities.drone_abstract import DroneAbstract
 from spg_overlay.utils.misc_data import MiscData
 from spg_overlay.utils.utils import normalize_angle
 
 
-class MyDroneRandom(DroneAbstract):
+class MyFirstDrone(DroneAbstract):
     def __init__(self,
                  identifier: Optional[int] = None,
                  misc_data: Optional[MiscData] = None,
