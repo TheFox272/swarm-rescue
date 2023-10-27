@@ -11,6 +11,7 @@ Welcome to Swarm rescue's documentation!
    :caption: Contents:
 
    swarm_rescue/experimental/assets/lidarMapping/lidarMapping
+   swarm_rescue/experimental/assets/lidarMapping/movement
    swarm_rescue/experimental/droneClasses/droneClasses
 
 Indices and tables
