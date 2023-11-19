@@ -138,6 +138,7 @@ class Grid:
         robot_pose : [x, y, theta] nparray, corrected robot pose
         """
         img = grid_to_display.T
+        print(img.min(), img.max())
         img = img - img.min()
         img = img / img.max() * 255
         img = np.uint8(img)
