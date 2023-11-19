@@ -1,7 +1,5 @@
 from enum import Enum
 
-TILE_SIZE = 10
-
 class Entity(Enum):
     CLOUD = 0   # an unexplored tile
     VOID = 1   # an empty tile (explored)

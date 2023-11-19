@@ -10,8 +10,8 @@ Welcome to Swarm rescue's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   swarm_rescue/experimental/assets/Mapping/lidarMapping
-   swarm_rescue/experimental/assets/Mapping/movement
+   swarm_rescue/experimental/assets/mapping/lidarMapping
+   swarm_rescue/experimental/assets/movement/movement
    swarm_rescue/experimental/droneClasses/droneClasses
 
 Indices and tables

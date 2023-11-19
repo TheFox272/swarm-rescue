@@ -1,22 +1,27 @@
 import math
 
 import numpy as np
-import gridFunctions as gridFun
+import swarm_rescue.experimental.assets.mapping.gridFunctions as gridFun
 
-from spg_overlay.utils.constants import MAX_RANGE_LIDAR_SENSOR
+from swarm_rescue.spg_overlay.utils.constants import MAX_RANGE_LIDAR_SENSOR
+
+# region local constants
+TILE_SIZE = 10
+# endregion
 
 def update_grid(occupancy_map, size_area_world, resolution, tile_map_size, lidar_values, lidar_ray_angles, pos, ori):
     """
     Bayesian map update with new observation
     occupancy_map : obstacles map
     size_area_world : size of the area in world coordinates
-    resolution : resolution of the map (nb of pixels per tile)
     tile_map_size : size of the map in tiles
     lidar_values : lidar distances data
     lidar_ray_angles : lidar angles data
     pos : gps position of the drone
     ori : compas angle of the drone
     """
+
+
 
     EVERY_N = 3
     LIDAR_DIST_CLIP = 40.0

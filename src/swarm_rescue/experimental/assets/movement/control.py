@@ -2,7 +2,7 @@ import math as m
 
 import numpy as np
 
-from swarm_rescue.experimental.assets.Mapping.entity import TILE_SIZE
+from swarm_rescue.experimental.assets.mapping.lidarMapping import TILE_SIZE
 from swarm_rescue.experimental.assets.movement.pathfinding import BASE_WEIGHT, CLOUD_BONUS
 
 # region local constants

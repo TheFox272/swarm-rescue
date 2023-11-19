@@ -4,7 +4,7 @@ import math as m
 import tcod.path
 import sys, os
 
-from src.swarm_rescue.experimental.assets.Mapping.entity import Entity
+from src.swarm_rescue.experimental.assets.mapping.entity import Entity
 from src.swarm_rescue.experimental.assets.behavior.state import State
 
 

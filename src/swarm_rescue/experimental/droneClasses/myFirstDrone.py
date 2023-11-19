@@ -14,13 +14,13 @@ from swarm_rescue.maps.map_intermediate_01 import MyMapIntermediate01
 from swarm_rescue.spg_overlay.gui_map.gui_sr import GuiSR
 from swarm_rescue.experimental.assets.movement.pathfinding import find_path, compute_path_map
 from swarm_rescue.experimental.assets.movement.control import compute_command
-from swarm_rescue.experimental.assets.Mapping.entity import TILE_SIZE
+from swarm_rescue.experimental.assets.mapping.lidarMapping import TILE_SIZE, update_grid
 from swarm_rescue.experimental.assets.behavior.state import State
 from src.swarm_rescue.experimental.assets.movement.pathfinding import BASE_WEIGHT, CLOUD_BONUS, WALL_WEIGHT
 
 # region local constants
 DRAW_PATH = True
-DRAW_PATH_MAP = False
+DRAW_PATH_MAP = True
 DRAW_GRID = False
 # endregion
 
@@ -61,14 +61,13 @@ class MyFirstDrone(DroneAbstract):
         self.target[1] = 10
 
 
-
     @property
     def in_noGPSzone(self):
         return self.measured_gps_position() is None
 
     @property
     def tile_pos(self):
-        return [self.pos[0] // TILE_SIZE, self.pos[1] // TILE_SIZE, self.pos[2]]
+        return [(self.pos[0] / TILE_SIZE + 0.5).astype(int), (self.pos[1] / TILE_SIZE + 0.5).astype(int), self.pos[2]]
 
     def update_position(self):
         if m.isnan(self.measured_gps_position()[0]):
@@ -98,8 +97,9 @@ class MyFirstDrone(DroneAbstract):
         How the drone moves
         """
         self.update_position()
+        self.occupancy_map = update_grid(self.occupancy_map, self.map_size, TILE_SIZE, self.tile_map_size, self.lidar().get_sensor_values(), self.lidar().ray_angles,
+                                         self.pos, self.pos[2])
         self.path_map = compute_path_map(self.tile_map_size, self.occupancy_map, self.entity_map, self.target, self.state)
-
         self.path = find_path(self.tile_map_size, self.path_map, self.tile_pos, self.target, self.speed, TILE_SIZE)
 
         return compute_command(self.path, self.path_map, self.tile_pos, self.speed)

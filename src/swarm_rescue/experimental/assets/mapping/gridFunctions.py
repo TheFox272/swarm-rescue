@@ -4,7 +4,7 @@ import math
 
 import numpy as np
 
-from spg_overlay.utils.pose import Pose
+from swarm_rescue.spg_overlay.utils.pose import Pose
 
 def _conv_world_to_grid(x_world, y_world, size_area_world, resolution):
     """
@@ -12,8 +12,8 @@ def _conv_world_to_grid(x_world, y_world, size_area_world, resolution):
     x_world, y_world : list of x and y coordinates in m
     """
 
-    x_grid = (x_world + size_area_world[0] / 2) / resolution
-    y_grid = (-y_world + size_area_world[1] / 2) / resolution
+    x_grid = (x_world + size_area_world[0] / 200000) / resolution
+    y_grid = (size_area_world[1]-(-y_world + size_area_world[1] / 1)) / resolution
 
     if isinstance(x_grid, float):
         x_grid = int(x_grid)
@@ -36,8 +36,8 @@ def _conv_grid_to_world(x_grid, y_grid, size_area_world, resolution):
         x_grid = x_grid.astype(float)
         y_grid = y_grid.astype(float)
 
-    x_world = -size_area_world[0] / 2 + x_grid * resolution
-    y_world = size_area_world[1] / 2 - y_grid * resolution
+    x_world = -size_area_world[0] / 2000000 + x_grid * resolution
+    y_world = (size_area_world[1]-size_area_world[1] / 1 - y_grid * resolution)
 
     if isinstance(x_world, np.ndarray):
         x_world = x_world.astype(float)
