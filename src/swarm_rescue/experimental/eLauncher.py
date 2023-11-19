@@ -40,7 +40,9 @@ def main():
     my_gui = GuiSR(playground=playground,
                    the_map=my_map,
                    draw_interactive=False,
-                   use_keyboard=False)
+                   use_keyboard=True,
+                   draw_gps=True,
+                   use_mouse_measure=True)
 
     # this function below is a blocking function until the round is finished
     my_gui.run()
