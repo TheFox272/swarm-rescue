@@ -14,7 +14,7 @@ from swarm_rescue.maps.map_intermediate_01 import MyMapIntermediate01
 from swarm_rescue.spg_overlay.gui_map.gui_sr import GuiSR
 from swarm_rescue.experimental.assets.movement.pathfinding import find_path, compute_path_map
 from swarm_rescue.experimental.assets.movement.control import compute_command
-from swarm_rescue.experimental.assets.mapping.entity import TILE_SIZE
+from swarm_rescue.experimental.assets.Mapping.entity import TILE_SIZE
 from swarm_rescue.experimental.assets.behavior.state import State
 from src.swarm_rescue.experimental.assets.movement.pathfinding import BASE_WEIGHT, CLOUD_BONUS, WALL_WEIGHT
 
