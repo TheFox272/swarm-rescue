@@ -53,16 +53,15 @@ class MyDroneMapping(DroneAbstract):
         # increment the iteration counter
         self.iteration += 1
 
-        gpsPos = self.measured_gps_position()
+        gpsPos = self.measured_gps_position() + self.size_area_world / 2
         compasAngle = self.measured_compass_angle()
         lidar_values = self.lidar().get_sensor_values()
         lidar_ray_angles = self.lidar().ray_angles
 
-        self.occupancy_map = lidarMapping.update_grid(self.occupancy_map, self.size_area_world, self.resolution, self.tile_map_size, lidar_values, lidar_ray_angles, gpsPos, compasAngle)
+        self.occupancy_map = lidarMapping.process_lidar(self.occupancy_map, self.size_area_world, self.resolution, self.tile_map_size, lidar_values, lidar_ray_angles, gpsPos, compasAngle)
         # if self.iteration % 5 == 0:
         if True:
-            draw_map(self.occupancy_map, self.tile_map_size, self.resolution, self.size_area_world,
-                     self.measured_gps_position(), self.measured_compass_angle())
+            draw_map(self.occupancy_map, self.resolution, self.size_area_world, self.measured_gps_position() + self.size_area_world / 2, self.measured_compass_angle())
         #     self.grid.display(self.grid.zoomed_grid, self.estimated_pose, title="zoomed occupancy grid")
         #     # pass
 

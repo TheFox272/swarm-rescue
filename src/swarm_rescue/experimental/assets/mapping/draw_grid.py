@@ -1,13 +1,10 @@
-import arcade
 import numpy as np
 
-import gridFunctions as gridFunc
-
-from spg_overlay.utils.grid import Grid
+import swarm_rescue.experimental.assets.mapping.gridFunctions as gridFunc
 
 import cv2
 
-def draw_map(map, map_size, resolution, size_area_world, pos, ori):
+def draw_map(map, resolution, size_area_world, pos, ori):
     img = map.T
     img = img - img.min()
     img = img / img.max() * 255
