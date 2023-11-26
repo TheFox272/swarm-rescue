@@ -120,6 +120,10 @@ class GuiSR(TopDownView):
 
         self.recorder = ScreenRecorder(self._size[0], self._size[1], fps=30, out_file=filename_video_capture)
 
+        # region ADDED
+        self._pause = False
+        # endregion
+
     def run(self):
         self._playground.window.run()
 
@@ -129,6 +133,12 @@ class GuiSR(TopDownView):
         self.draw()
 
     def on_update(self, delta_time):
+
+        # region ADDED
+        if self._pause:
+            return
+        # endregion
+
         self._elapsed_time += 1
 
         if self._elapsed_time < 2:
@@ -311,6 +321,19 @@ class GuiSR(TopDownView):
 
         if key == arcade.key.S:
             self._draw_semantic_rays = not self._draw_semantic_rays
+
+        # region ADDED
+        if key == arcade.key.NUM_0:
+            self._drones[0].draw_grid = 1 - self._drones[0].draw_grid
+        if key == arcade.key.NUM_1:
+            self._drones[0].draw_path = 1 - self._drones[0].draw_path
+        if key == arcade.key.NUM_2:
+            self._drones[0].draw_path_map = 1 - self._drones[0].draw_path_map
+        if key == arcade.key.NUM_3:
+            self._drones[0].draw_waypoints = 1 - self._drones[0].draw_waypoints
+        if key == arcade.key.SPACE:
+            self._pause = 1 - self._pause
+        # endregion
 
     def on_key_release(self, key, modifiers):
         self._keyboardController.on_key_release(key, modifiers)
