@@ -1,7 +1,7 @@
 import math
 
 import numpy as np
-import swarm_rescue.experimental.assets.mapping.gridFunctions as gridFun
+import swarm_rescue.experimental.assets.Mapping.gridFunctions as gridFun
 
 from swarm_rescue.spg_overlay.utils.constants import MAX_RANGE_LIDAR_SENSOR
 
