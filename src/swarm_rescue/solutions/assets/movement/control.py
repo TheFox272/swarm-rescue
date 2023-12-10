@@ -4,13 +4,15 @@ from typing import List, Tuple
 import numba as nb
 import numpy as np
 
-from swarm_rescue.experimental.assets.mapping.mapping_constants import TILE_SIZE
-from swarm_rescue.experimental.assets.movement.pathfinding import BASE_WEIGHT, CLOUD_BONUS
+from swarm_rescue.solutions.assets.mapping.mapping_constants import TILE_SIZE
+from swarm_rescue.solutions.assets.movement.pathfinding import BASE_WEIGHT, CLOUD_BONUS
+from swarm_rescue.solutions.assets.behavior.state import State
+from swarm_rescue.solutions.assets.behavior.think import DROP_DISTANCE
 
 # region local constants
 FORESEE = 7
 """
-Constant corresponding to the maximum number of points from the :py:attr:`~swarm_rescue.experimental.droneClasses.myFirstDrone.MyFirstDrone.path` that the drone will take into 
+Constant corresponding to the maximum number of points from the :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path` that the drone will take into 
 consideration in :py:func:`compute_command`
 
 :type: int
@@ -73,16 +75,18 @@ def first_weighted_avg(nList: List[float], n: np.uint) -> float:
     return res
 
 
-def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos: np.ndarray) -> dict[str, float]:
+def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos: np.ndarray, state: State, victim_angle: float, distance_from_closest_base) -> dict[
+    str, float]:
     """Computes the command of the drone
 
     Uses path to determine the next point that the drone needs to reach, using the :py:function:first_weighted_avg function to anticipate the trajectory. Uses the
     path_map to determine if the path is risky, and if so anticipate less.
 
     Args:
-        path: see :py:attr:`~swarm_rescue.experimental.droneClasses.myFirstDrone.MyFirstDrone.path`.
-        path_map: see :py:attr:`~swarm_rescue.experimental.droneClasses.myFirstDrone.MyFirstDrone.path_map`.
-        tile_pos: see :py:attr:`~swarm_rescue.experimental.droneClasses.myFirstDrone.MyFirstDrone.tile_pos`.
+        path: see :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path`.
+        path_map: see :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`.
+        tile_pos: see :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.tile_pos`.
+        state: see :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.state`.
 
     Returns:
         The resulting control command.
@@ -91,6 +95,12 @@ def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos:
                "lateral": 0.0,
                "rotation": 0.0,
                "grasper": 0}
+
+    if state == State.DONE.value:
+        return command
+
+    if state == State.SAVE.value:
+        command["grasper"] = 1
 
     if len(path) == 0:
         return command
@@ -108,10 +118,14 @@ def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos:
 
         forward_diff = dx * m.cos(tile_pos[2]) + dy * m.sin(tile_pos[2])
         lateral_diff = -dx * m.sin(tile_pos[2]) + dy * m.cos(tile_pos[2])
-        rot_diff = signed_angle(path_angle - tile_pos[2])
+        rot_diff = signed_angle(path_angle - tile_pos[2] - victim_angle)
 
         command["forward"] = min(max(-1, forward_diff * K_FOR), 1)
         command["lateral"] = min(max(-1, lateral_diff * K_LAT), 1)
         command["rotation"] = min(max(-1, rot_diff * K_ROT), 1)
+
+        if state == State.SAVE.value and distance_from_closest_base < DROP_DISTANCE:
+            command["forward"] /= 4
+            command["lateral"] /= 4
 
         return command

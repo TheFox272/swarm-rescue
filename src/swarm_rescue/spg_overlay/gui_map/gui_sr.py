@@ -335,9 +335,15 @@ class GuiSR(TopDownView):
         if key == arcade.key.NUM_1:
             self._drones[0].draw_path = 1 - self._drones[0].draw_path
         if key == arcade.key.NUM_2:
-            self._drones[0].draw_path_map = 1 - self._drones[0].draw_path_map
-        if key == arcade.key.NUM_3:
             self._drones[0].draw_waypoints = 1 - self._drones[0].draw_waypoints
+        if key == arcade.key.NUM_3:
+            self._drones[0].draw_path_map = 1 - self._drones[0].draw_path_map
+            if self._drones[0].draw_entity_map:
+                self._drones[0].draw_entity_map = 1 - self._drones[0].draw_entity_map
+        if key == arcade.key.NUM_4:
+            self._drones[0].draw_entity_map = 1 - self._drones[0].draw_entity_map
+            if self._drones[0].draw_path_map:
+                self._drones[0].draw_path_map = 1 - self._drones[0].draw_path_map
         if key == arcade.key.SPACE:
             self._pause = 1 - self._pause
         # endregion

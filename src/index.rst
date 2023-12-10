@@ -10,10 +10,10 @@ Welcome to Swarm rescue's documentation!
    :maxdepth: 5
    :caption: Contents:
 
-   swarm_rescue/experimental/assets/mapping/mapping
-   swarm_rescue/experimental/assets/movement/movement
-   swarm_rescue/experimental/assets/behavior/behavior
-   swarm_rescue/experimental/droneClasses/droneClasses
+   swarm_rescue/solutions/droneClasses
+   swarm_rescue/solutions/assets/mapping/mapping
+   swarm_rescue/solutions/assets/movement/movement
+   swarm_rescue/solutions/assets/behavior/behavior
    swarm_rescue/spg_overlay/utils/utils
 
 Indices and tables

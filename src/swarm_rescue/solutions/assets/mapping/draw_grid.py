@@ -1,6 +1,6 @@
 import numpy as np
 
-import swarm_rescue.experimental.assets.mapping.gridFunctions as gridFunc
+import swarm_rescue.solutions.assets.mapping.gridFunctions as gridFunc
 
 import cv2
 

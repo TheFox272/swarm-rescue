@@ -20,12 +20,10 @@ from maps.map_final_2023 import MyMapFinal
 from maps.map_medium_01 import MyMapMedium01
 from maps.map_medium_02 import MyMapMedium02
 
-from solutions.my_drone_eval import MyDroneEval
-
-from droneClasses.testDrawMap import MyDroneTestDrawMap
+from solutions.myFirstDrone import MyFirstDrone
 
 # Drone selection
-class MyDrone(MyDroneTestDrawMap):
+class MyDrone(MyFirstDrone):
     pass
 
 # Map selection
@@ -37,15 +35,15 @@ def main():
 
     playground = my_map.construct_playground(drone_type=MyDrone)
 
-    my_gui = GuiSR(playground=playground,
-                   the_map=my_map,
-                   draw_interactive=False,
-                   use_keyboard=True,
-                   draw_gps=True,
-                   use_mouse_measure=True)
+    gui = GuiSR(playground=playground,
+                the_map=my_map,
+                use_keyboard=False,
+                use_mouse_measure=True,
+                enable_visu_noises=False
+                )
 
     # this function below is a blocking function until the round is finished
-    my_gui.run()
+    gui.run()
 
 
 if __name__ == "__main__":

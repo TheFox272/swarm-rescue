@@ -1,0 +1,4 @@
+tcod
+numpy
+numba
+typing
