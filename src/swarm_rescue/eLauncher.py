@@ -2,6 +2,7 @@ import gc
 from typing import Tuple
 
 import sys, os
+
 # This line add, to sys.path, the path to parent path of this file
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -22,13 +23,16 @@ from maps.map_medium_02 import MyMapMedium02
 
 from solutions.myFirstDrone import MyFirstDrone
 
+
 # Drone selection
 class MyDrone(MyFirstDrone):
     pass
 
+
 # Map selection
 class MyMap(MyMapIntermediate01):
     pass
+
 
 def main():
     my_map = MyMap()

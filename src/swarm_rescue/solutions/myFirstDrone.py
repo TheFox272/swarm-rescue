@@ -122,6 +122,7 @@ class MyFirstDrone(DroneAbstract):
         self.victims = list()
         self.distance_from_closest_victim = m.inf
         self.distance_from_closest_base = m.inf
+        self.distance_from_closest_drone = m.inf
         self.victim_angle = 0
         self.timers = {"waypoints_scan": 0, "victim_wait": 0}
         # endregion
@@ -137,7 +138,6 @@ class MyFirstDrone(DroneAbstract):
         # region testing (to comment out for eval)
         self.cycle = 0
         # endregion
-
 
     @property
     def in_noGPSzone(self):
@@ -178,15 +178,15 @@ class MyFirstDrone(DroneAbstract):
         self.update_position()
         self.occupancy_map = process_lidar(self.occupancy_map, self.map_size, TILE_SIZE, self.tile_map_size, self.lidar_values(), self.lidar_rays_angles(),
                                            self.pos, self.pos[2])
-        self.distance_from_closest_victim, self.victim_angle, self.distance_from_closest_base = process_semantic(self.semantic_values(), self.pos,
-                                                                                                                 self.tile_map_size, self.victims, self.state,
-                                                                                                                 self.bases, self.entity_map, self.path_map,
-                                                                                                                 self.occupancy_map, self.victim_angle)
+        (self.distance_from_closest_victim, self.victim_angle, self.distance_from_closest_base,
+         self.distance_from_closest_drone) = process_semantic(self.semantic_values(), self.pos, self.tile_map_size, self.victims, self.state, self.bases, self.entity_map,
+                                                              self.path_map, self.occupancy_map, self.victim_angle)
         self.path_map = compute_path_map(self.tile_map_size, self.occupancy_map, self.entity_map, self.state, self.target)
         self.state, self.target, self.target_waypoint = compute_behavior(self.id, self.target, self.target_waypoint, self.tile_pos, self.path, self.speed,
                                                                          self.state, self.victims, self.distance_from_closest_victim, self.bases,
                                                                          self.distance_from_closest_base, self.got_victim, self.waypoints, self.n_width,
-                                                                         self.n_height, self.tile_map_size, self.entity_map, self.path_map, self.timers)
+                                                                         self.n_height, self.tile_map_size, self.entity_map, self.path_map, self.timers,
+                                                                         self.distance_from_closest_drone)
 
         if is_defined(self.target):
             self.path = find_path(self.tile_map_size, self.path_map, self.tile_pos, self.target, self.speed)

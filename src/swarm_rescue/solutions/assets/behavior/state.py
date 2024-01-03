@@ -10,3 +10,4 @@ class State(Enum):
     RESCUE = 2  # the drone saw a victim and is about to grab it
     SAVE = 3  # the drone is carrying a victim back to the (closest) rescue center
     DONE = 4  # the drone is done exploring his zones
+    AVOID = 5

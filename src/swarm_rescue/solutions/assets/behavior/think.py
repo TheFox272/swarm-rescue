@@ -130,7 +130,10 @@ undefined_target = (-1, -1)
 
 
 def compute_behavior(id, target, target_waypoint, tile_pos, path, speed, state, victims, distance_from_closest_victim, bases, distance_from_closest_base,
-                     got_victim, waypoints, n_width, n_height, tile_map_size, entity_map, path_map, timers):
+                     got_victim, waypoints, n_width, n_height, tile_map_size, entity_map, path_map, timers, distance_from_closest_drone):
+
+
+    
     if state == State.BOOT.value:
         # TODO boot
         return State.EXPLORE.value, undefined_target, undefined_target

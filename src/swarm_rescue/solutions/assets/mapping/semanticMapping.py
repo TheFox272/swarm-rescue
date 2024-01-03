@@ -14,6 +14,7 @@ def process_semantic(semantic_values, pos, tile_map_size, victims, state, bases,
     distance_from_closest_victim = m.inf
     victim_angle = victim_angle
     distance_from_closest_base = m.inf
+    distance_from_closest_drone = m.inf
 
     if len(semantic_values) != 0 and not m.isnan(semantic_values[0].distance):
 
@@ -39,6 +40,9 @@ def process_semantic(semantic_values, pos, tile_map_size, victims, state, bases,
                         distance_from_closest_victim = data.distance
                         victim_angle = data.angle
 
+                """
+                TODO: utiliser fonction de Louis pour faire plus propre
+                """
                 vector = np.array(pos[:2]) - np.array((tile_target_x, tile_target_y)) * TILE_SIZE
                 vector /= np.linalg.norm(vector)
                 for p in set([(tile_target_x + int(t * vector[0]) // TILE_SIZE, tile_target_y + int(t * vector[1]) // TILE_SIZE)
@@ -55,4 +59,8 @@ def process_semantic(semantic_values, pos, tile_map_size, victims, state, bases,
                 if data.distance < distance_from_closest_base:
                     distance_from_closest_base = data.distance
 
-    return distance_from_closest_victim, victim_angle, distance_from_closest_base
+            elif data.entity_type.value == DroneSemanticSensor.TypeEntity.DRONE.value:
+                if data.distance < distance_from_closest_drone:
+                    distance_from_closest_drone = data.distance
+
+    return distance_from_closest_victim, victim_angle, distance_from_closest_base, distance_from_closest_drone
