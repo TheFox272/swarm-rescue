@@ -63,25 +63,26 @@ class MyFirstDrone(DroneAbstract):
         self.tile_map_size = tuple([np.int8(size / TILE_SIZE) for size in self.map_size])
         """
         The map size, in tiles.
+        :type: tuple[int8, int8]
         """
         self.occupancy_map = np.zeros(self.tile_map_size, dtype=np.float32)
         """
         The array on which the drone's LIDAR acts. A positive value on a tile means there is a wall there, a negative value means there isn't.
         
-        :type: array of float32
+        :type: ndarray of float32
         """
         self.path_map = np.ones(self.tile_map_size, dtype=np.uint8)
         """
         The array, mainly computed from :py:attr:`occupancy_map`, that the drone uses to find its path. A number n on a tile means that this tile costs n to go 
         through.
         
-        :type: array of uint8
+        :type: ndarray of uint8
         """
         self.entity_map = np.zeros(self.tile_map_size, dtype=np.uint8)
         """
         The array corresponding to the entities present on each tile.
         
-        :type: array of uint8
+        :type: ndarray of uint8
         """
         self.trust_map = np.zeros(self.tile_map_size, dtype=np.uint8)
         """
@@ -115,7 +116,7 @@ class MyFirstDrone(DroneAbstract):
         """
         The int value corresponding to the state of the drone, among :py:class:`~swarm_rescue.solutions.assets.behavior.state.State`.
         
-        :type: int
+        :type: State
         """
         self.waypoints, self.n_width, self.n_height = zone_split(self.tile_map_size, self.tile_pos, 1, 1)  # WIP
         self.target_waypoint = (0, 0)

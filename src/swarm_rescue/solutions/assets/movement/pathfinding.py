@@ -72,7 +72,7 @@ f_runoff = nb.njit(lambda distance, weight: np.int8(round(BASE_WEIGHT + weight *
 """
 
 @nb.njit
-def compute_path_map(tile_map_size: Tuple[int, int], occupancy_map: np.ndarray, entity_map: np.ndarray, state: State, target) -> np.ndarray:
+def compute_path_map(tile_map_size: Tuple[np.int8, np.int8], occupancy_map: np.ndarray, entity_map: np.ndarray, state: State, target) -> np.ndarray:
     """Computes the path that the drone will use for its pathfinding
 
     Args:
