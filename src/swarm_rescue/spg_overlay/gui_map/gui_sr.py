@@ -123,6 +123,7 @@ class GuiSR(TopDownView):
 
         # region ADDED
         self._pause = False
+        self._focused_drone = 0
         # endregion
 
     def run(self):
@@ -330,20 +331,34 @@ class GuiSR(TopDownView):
             self._draw_semantic_rays = not self._draw_semantic_rays
 
         # region ADDED
+        if key == arcade.key.TAB:
+            new_drone_num = (self._focused_drone + 1) % self._number_drones
+            self._drones[new_drone_num].draw_grid = self._drones[self._focused_drone].draw_grid
+            self._drones[new_drone_num].draw_path = self._drones[self._focused_drone].draw_path
+            self._drones[new_drone_num].draw_waypoints = self._drones[self._focused_drone].draw_waypoints
+            self._drones[new_drone_num].draw_path_map = self._drones[self._focused_drone].draw_path_map
+            self._drones[new_drone_num].draw_entity_map = self._drones[self._focused_drone].draw_entity_map
+            self._drones[self._focused_drone].draw_grid = False
+            self._drones[self._focused_drone].draw_path = False
+            self._drones[self._focused_drone].draw_waypoints = False
+            self._drones[self._focused_drone].draw_path_map = False
+            self._drones[self._focused_drone].draw_entity_map = False
+            self._focused_drone = new_drone_num
+
         if key == arcade.key.NUM_0:
-            self._drones[0].draw_grid = 1 - self._drones[0].draw_grid
+            self._drones[self._focused_drone].draw_grid = 1 - self._drones[self._focused_drone].draw_grid
         if key == arcade.key.NUM_1:
-            self._drones[0].draw_path = 1 - self._drones[0].draw_path
+            self._drones[self._focused_drone].draw_path = 1 - self._drones[self._focused_drone].draw_path
         if key == arcade.key.NUM_2:
-            self._drones[0].draw_waypoints = 1 - self._drones[0].draw_waypoints
+            self._drones[self._focused_drone].draw_waypoints = 1 - self._drones[self._focused_drone].draw_waypoints
         if key == arcade.key.NUM_3:
-            self._drones[0].draw_path_map = 1 - self._drones[0].draw_path_map
-            if self._drones[0].draw_entity_map:
-                self._drones[0].draw_entity_map = 1 - self._drones[0].draw_entity_map
+            self._drones[self._focused_drone].draw_path_map = 1 - self._drones[self._focused_drone].draw_path_map
+            if self._drones[self._focused_drone].draw_entity_map:
+                self._drones[self._focused_drone].draw_entity_map = 1 - self._drones[self._focused_drone].draw_entity_map
         if key == arcade.key.NUM_4:
-            self._drones[0].draw_entity_map = 1 - self._drones[0].draw_entity_map
-            if self._drones[0].draw_path_map:
-                self._drones[0].draw_path_map = 1 - self._drones[0].draw_path_map
+            self._drones[self._focused_drone].draw_entity_map = 1 - self._drones[self._focused_drone].draw_entity_map
+            if self._drones[self._focused_drone].draw_path_map:
+                self._drones[self._focused_drone].draw_path_map = 1 - self._drones[self._focused_drone].draw_path_map
         if key == arcade.key.SPACE:
             self._pause = 1 - self._pause
         # endregion
