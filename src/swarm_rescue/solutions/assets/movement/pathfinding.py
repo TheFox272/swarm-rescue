@@ -132,7 +132,7 @@ def anticipate_pos(tile_pos, speed, tile_map_size):
     y = min(max(0, tile_pos[1] + round(speed[1] / TILE_SIZE, 0)), tile_map_size[1]-1)
     return np.array([x, y], dtype=np.int8)
 
-def find_path(tile_map_size: Tuple[int, int], path_map: np.ndarray, tile_pos: np.ndarray, target_pos: np.ndarray, drone_speed: np.ndarray) -> (
+def find_path(tile_map_size: Tuple[int, int], path_map: np.ndarray, tile_pos: np.ndarray, target_pos: Tuple[int, int], drone_speed: np.ndarray) -> (
         List)[Tuple[int, int]]:
     """Computes the shortest path
 
@@ -149,4 +149,10 @@ def find_path(tile_map_size: Tuple[int, int], path_map: np.ndarray, tile_pos: np
     graph = tcod.path.SimpleGraph(cost=path_map, cardinal=5, diagonal=7)
     pf = tcod.path.Pathfinder(graph)
     pf.add_root(anticipate_pos(tile_pos, drone_speed, tile_map_size))
-    return pf.path_to(target_pos)[1:-1]
+
+    computed_path = pf.path_to(target_pos)
+
+    if len(computed_path) > 2:
+        return computed_path[1:]
+    else:
+        return []

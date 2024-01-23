@@ -25,7 +25,7 @@ from swarm_rescue.solutions.assets.mapping.draw_grid import draw_map
 from swarm_rescue.solutions.assets.behavior.state import State
 from swarm_rescue.solutions.assets.behavior.map_split import zone_split, waypoint_pos, ZONE_SIZE
 from swarm_rescue.solutions.assets.movement.pathfinding import BASE_WEIGHT, CLOUD_BONUS, WALL_WEIGHT
-from swarm_rescue.solutions.assets.behavior.think import compute_behavior, is_defined
+from swarm_rescue.solutions.assets.behavior.think import compute_behavior, is_defined, undefined_index, undefined_target
 
 
 # region local constants
@@ -113,19 +113,21 @@ class MyFirstDrone(DroneAbstract):
         # endregion
         # region behavior init
         self.state = State.BOOT.value
+        # if self.id != 0:
+        #     self.state = State.DONE.value
         """
         The int value corresponding to the state of the drone, among :py:class:`~swarm_rescue.solutions.assets.behavior.state.State`.
         
         :type: State
         """
-        self.waypoints, self.n_width, self.n_height = zone_split(self.tile_map_size, self.tile_pos, 1, 1)  # WIP
-        self.target_waypoint = (0, 0)
+        self.waypoints, self.n_width, self.n_height = zone_split(self.tile_map_size, self.tile_pos, 10, self.id)  # WIP
+        self.target_indication = {"victim": undefined_index, "waypoint": undefined_target, "base": False}
         self.victims = list()
         self.distance_from_closest_victim = m.inf
         self.distance_from_closest_base = m.inf
         self.distance_from_closest_drone = m.inf
         self.victim_angle = 0
-        self.timers = {"waypoints_scan": 0, "victim_wait": 0}
+        self.timers = {"waypoints_scan": 0, "victim_wait": 0, "believe_wait": 0, "base_scan": 0}
         # endregion
 
         # region drawing (to comment out for eval)
@@ -183,11 +185,11 @@ class MyFirstDrone(DroneAbstract):
          self.distance_from_closest_drone) = process_semantic(self.semantic_values(), self.pos, self.tile_map_size, self.victims, self.state, self.bases, self.entity_map,
                                                               self.path_map, self.occupancy_map, self.victim_angle)
         self.path_map = compute_path_map(self.tile_map_size, self.occupancy_map, self.entity_map, self.state, self.target)
-        self.state, self.target, self.target_waypoint = compute_behavior(self.id, self.target, self.target_waypoint, self.tile_pos, self.path, self.speed,
-                                                                         self.state, self.victims, self.distance_from_closest_victim, self.bases,
-                                                                         self.distance_from_closest_base, self.got_victim, self.waypoints, self.n_width,
-                                                                         self.n_height, self.tile_map_size, self.entity_map, self.path_map, self.timers,
-                                                                         self.distance_from_closest_drone)
+
+        self.state, self.target = compute_behavior(self.id, self.target, self.target_indication, self.tile_pos, self.path, self.speed, self.state, self.victims,
+                                                   self.distance_from_closest_victim, self.bases, self.distance_from_closest_base, self.got_victim, self.waypoints,
+                                                   self.n_width, self.n_height, self.tile_map_size, self.entity_map, self.path_map, self.timers,
+                                                   self.distance_from_closest_drone)
 
         if is_defined(self.target):
             self.path = find_path(self.tile_map_size, self.path_map, self.tile_pos, self.target, self.speed)

@@ -7,7 +7,7 @@ import numpy as np
 from swarm_rescue.solutions.assets.mapping.mapping_constants import TILE_SIZE
 from swarm_rescue.solutions.assets.movement.pathfinding import BASE_WEIGHT, CLOUD_BONUS
 from swarm_rescue.solutions.assets.behavior.state import State
-from swarm_rescue.solutions.assets.behavior.think import DROP_DISTANCE
+from swarm_rescue.solutions.assets.behavior.think import DROP_DISTANCE, GRAB_DISTANCE
 
 # region local constants
 FORESEE = 7
@@ -75,8 +75,8 @@ def first_weighted_avg(nList: List[float], n: np.uint) -> float:
     return res
 
 
-def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos: np.ndarray, state: State, victim_angle: float, distance_from_closest_base) -> dict[
-    str, float]:
+def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos: np.ndarray, state: State, victim_angle: float,
+                    distance_from_closest_base) -> dict[str, float]:
     """Computes the command of the drone
 
     Uses path to determine the next point that the drone needs to reach, using the :py:function:first_weighted_avg function to anticipate the trajectory. Uses the
