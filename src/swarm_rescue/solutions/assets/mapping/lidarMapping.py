@@ -43,8 +43,11 @@ def process_lidar(occupancy_map, size_area_world, resolution, tile_map_size, lid
     points_x = pos[0] + np.multiply(lidar_dist_empty_clip, cos_rays)
     points_y = pos[1] + np.multiply(lidar_dist_empty_clip, sin_rays)
 
-    for pt_x, pt_y in zip(points_x, points_y):
-        gridFun.add_value_along_line(occupancy_map, size_area_world, resolution, tile_map_size, pos[0], pos[1], pt_x, pt_y, EMPTY_ZONE_VALUE)
+    try:
+        for pt_x, pt_y in zip(points_x, points_y):
+            gridFun.add_value_along_line(occupancy_map, size_area_world, resolution, tile_map_size, pos[0], pos[1], pt_x, pt_y, EMPTY_ZONE_VALUE)
+    except OverflowError:
+        pass
 
     # For obstacle zones, all values of lidar_dist are < max_range
     select_collision = lidar_dist < max_range
