@@ -5,6 +5,7 @@ import swarm_rescue.solutions.assets.mapping.gridFunctions as gridFun
 
 from swarm_rescue.spg_overlay.utils.constants import MAX_RANGE_LIDAR_SENSOR
 
+
 def process_lidar(occupancy_map, size_area_world, resolution, tile_map_size, lidar_values, lidar_ray_angles, pos, ori):
     """
     Bayesian map update with new observation
@@ -25,8 +26,11 @@ def process_lidar(occupancy_map, size_area_world, resolution, tile_map_size, lid
     THRESHOLD_MIN = -40
     THRESHOLD_MAX = 40
 
-    lidar_dist = lidar_values[::EVERY_N].copy()
-    lidar_angles = lidar_ray_angles[::EVERY_N].copy()
+    if lidar_values is not None:  # prevents crash when dead
+        lidar_dist = lidar_values[::EVERY_N].copy()
+        lidar_angles = lidar_ray_angles[::EVERY_N].copy()
+    else:
+        return occupancy_map
 
     # Compute cos and sin of the absolute angle of the lidar
     cos_rays = np.cos(lidar_angles + ori)
@@ -43,11 +47,11 @@ def process_lidar(occupancy_map, size_area_world, resolution, tile_map_size, lid
     points_x = pos[0] + np.multiply(lidar_dist_empty_clip, cos_rays)
     points_y = pos[1] + np.multiply(lidar_dist_empty_clip, sin_rays)
 
-    try:
+    try:  # prevents crash when out of the map
         for pt_x, pt_y in zip(points_x, points_y):
             gridFun.add_value_along_line(occupancy_map, size_area_world, resolution, tile_map_size, pos[0], pos[1], pt_x, pt_y, EMPTY_ZONE_VALUE)
     except OverflowError:
-        pass
+        return occupancy_map
 
     # For obstacle zones, all values of lidar_dist are < max_range
     select_collision = lidar_dist < max_range

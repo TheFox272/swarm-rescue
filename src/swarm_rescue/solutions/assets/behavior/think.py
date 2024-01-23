@@ -17,10 +17,10 @@ ZONE_COMPLETION = 85
 VICTIM_RESCUED_NB = -2
 VICTIM_WAITING_NB = -1
 
-WAYPOINTS_SCAN = 10
-BASE_SCAN = 20
-BELIEVE_WAIT = 10
-VICTIM_WAIT = 10
+WAYPOINTS_SCAN = 8
+BASE_SCAN = 16
+BELIEVE_WAIT = 2
+VICTIM_WAIT = 4
 
 
 # endregion
@@ -79,21 +79,15 @@ def next_victim(tile_pos, drone_speed, victims, tile_map_size):
 
 
 def next_base(tile_pos, drone_speed, bases, tile_map_size):
-    if len(tile_pos) == 3:  # test if tile_pos is drone_pos or target_pos (possible when victim check)
-        drone_x, drone_y = anticipate_pos(tile_pos, drone_speed, tile_map_size)
-    else:
-        drone_x, drone_y = tile_pos[0], tile_pos[1]
 
-    best_base = None
-    best_distance = m.inf
+    if len(bases) == 0:
+        return None
 
-    for base in bases:
-        distance = m.sqrt((drone_x - base[0]) ** 2 + (drone_y - base[1]) ** 2)
-        if distance < best_distance:
-            best_base = base
-            best_distance = distance
+    drone_pos = anticipate_pos(tile_pos, drone_speed, tile_map_size)
+    nodes = np.asarray(bases)
+    dist_2 = np.sum((nodes - drone_pos) ** 2, axis=1)
 
-    return best_base
+    return nodes[np.argmin(dist_2)]
 
 
 @nb.njit
@@ -184,12 +178,12 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
                 else:
                     return State.EXPLORE.value, target
             else:
-                nw = next_waypoint(tile_pos, speed, waypoints, n_width, n_height, tile_map_size, path_map)
-                if nw is None:
+                target_waypoint = next_waypoint(tile_pos, speed, waypoints, n_width, n_height, tile_map_size, path_map)
+                if target_waypoint is None:
                     return State.DONE.value, undefined_target
                 else:
-                    target_indication["waypoint"] = nw
-                    return State.EXPLORE.value, waypoint_pos(nw[0], nw[1])
+                    target_indication["waypoint"] = target_waypoint
+                    return State.EXPLORE.value, waypoint_pos(target_waypoint[0], target_waypoint[1])
 
     elif state == State.RESCUE.value:
 
@@ -210,6 +204,9 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
 
         if distance_from_closest_victim is not m.inf and distance_from_closest_victim <= GRAB_DISTANCE:
             timers["believe_wait"] = 0
+            timers["victim_wait"] = 0
+            timers["base_scan"] = 0
+            target_indication["base"] = False
             return State.SAVE.value, target
 
         else:
@@ -226,18 +223,14 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
                 target_indication["victim"] = undefined_index
                 victims[best_victim_index][2] = VICTIM_RESCUED_NB
 
-            nb = next_base(tile_pos, speed, bases, tile_map_size)
-            if nb is None:
+            target_base = next_base(tile_pos, speed, bases, tile_map_size)
+            if target_base is None:
                 return State.SAVE.value, tuple(bases[0])  # TODO : change that
             else:
-                return State.SAVE.value, tuple(nb)
+                return State.SAVE.value, tuple(target_base)
 
         elif not target_indication["base"] and not got_victim:
             if timers["victim_wait"] >= VICTIM_WAIT:
-                timers["victim_wait"] = 0
-                timers["base_scan"] = 0
-                target_indication["base"] = False
-
                 victims[target_indication["victim"]][2] = VICTIM_RESCUED_NB
                 target_indication["victim"] = undefined_index
 
@@ -247,9 +240,6 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
                 return State.SAVE.value, target
 
         elif target_indication["base"] and not got_victim:  # means he lost his victim somehow, or dropped it
-            timers["victim_wait"] = 0
-            timers["base_scan"] = 0
-            target_indication["base"] = False
             return State.EXPLORE.value, undefined_target
 
         elif target_indication["base"] and got_victim:

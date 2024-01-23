@@ -16,7 +16,7 @@ def process_semantic(semantic_values, pos, tile_map_size, victims, state, bases,
     distance_from_closest_base = m.inf
     distance_from_closest_drone = m.inf
 
-    if len(semantic_values) != 0 and not m.isnan(semantic_values[0].distance):
+    if semantic_values is not None and len(semantic_values) != 0 and not m.isnan(semantic_values[0].distance):
 
         for data in semantic_values:
             ray_angle = data.angle + pos[2]

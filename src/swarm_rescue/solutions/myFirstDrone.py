@@ -60,10 +60,10 @@ class MyFirstDrone(DroneAbstract):
         """
         The map size, in pixels.
         """
-        self.tile_map_size = tuple([np.int8(size / TILE_SIZE) for size in self.map_size])
+        self.tile_map_size = tuple([np.int32(size / TILE_SIZE) for size in self.map_size])
         """
         The map size, in tiles.
-        :type: tuple[int8, int8]
+        :type: tuple[int32, int32]
         """
         self.occupancy_map = np.zeros(self.tile_map_size, dtype=np.float32)
         """
@@ -131,6 +131,7 @@ class MyFirstDrone(DroneAbstract):
         # endregion
 
         # region drawing (to comment out for eval)
+        self.draw_id = False
         self.draw_path = False
         self.draw_path_map = False
         self.draw_entity_map = False
@@ -151,13 +152,22 @@ class MyFirstDrone(DroneAbstract):
         return len(self.grasped_entities()) != 0
 
     @property
+    def is_dead(self):
+        return self.odometer_values() is None
+
+    @property
     def tile_pos(self):
         return [(self.pos[0] / TILE_SIZE + 0.5).astype(int), (self.pos[1] / TILE_SIZE + 0.5).astype(int), self.pos[2]]
 
     def update_position(self):
-        self.speed[0] = self.odometer_values()[0] * m.cos(self.pos[2] + self.odometer_values()[1])
-        self.speed[1] = self.odometer_values()[0] * m.sin(self.pos[2] + self.odometer_values()[1])
-        self.speed[2] = self.odometer_values()[2]
+        if self.odometer_values() is not None:
+            self.speed[0] = self.odometer_values()[0] * m.cos(self.pos[2] + self.odometer_values()[1])
+            self.speed[1] = self.odometer_values()[0] * m.sin(self.pos[2] + self.odometer_values()[1])
+            self.speed[2] = self.odometer_values()[2]
+        else:
+            self.speed[0] = 0
+            self.speed[1] = 0
+            self.speed[2] = 0
         if not self.in_noGPSzone:
             if not m.isnan(self.measured_gps_position()[0]):
                 self.pos[0] = self.measured_gps_position()[0] + self.map_size[0] / 2
@@ -178,6 +188,9 @@ class MyFirstDrone(DroneAbstract):
         """
         How the drone moves
         """
+        if self.is_dead:
+            return None
+
         self.update_position()
         self.occupancy_map = process_lidar(self.occupancy_map, self.map_size, TILE_SIZE, self.tile_map_size, self.lidar_values(), self.lidar_rays_angles(),
                                            self.pos, self.pos[2])
@@ -281,3 +294,7 @@ class MyFirstDrone(DroneAbstract):
                 arcade.draw_line(i * TILE_SIZE, 0, i * TILE_SIZE, self.map_size[1], arcade.color.BLACK, 1)
             for i in range(0, self.tile_map_size[1]):
                 arcade.draw_line(0, i * TILE_SIZE, self.map_size[0], i * TILE_SIZE, arcade.color.BLACK, 1)
+
+        if self.draw_id:
+            arcade.draw_text(str(self.id), x + 15, y - 15, arcade.color.BLACK, 15)  # draw id
+

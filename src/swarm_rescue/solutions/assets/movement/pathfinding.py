@@ -55,6 +55,14 @@ kill zone with a victim.
 :type: int
 :domain: [0, inf]
 """
+DRONE_RELUCTANCE = 2
+"""
+Constant used in :py:func:`compute_path_map`, corresponding to the malus weight of the other drone's tiles of 
+:py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`.
+
+:type: int
+:domain: [0, inf]
+"""
 KILL_RELUCTANCE = 5
 """
 Constant used in :py:func:`compute_path_map`, corresponding to the malus weight of the kill zone tiles of 
@@ -72,7 +80,7 @@ f_runoff = nb.njit(lambda distance, weight: np.int8(round(BASE_WEIGHT + weight *
 """
 
 @nb.njit
-def compute_path_map(tile_map_size: Tuple[np.int8, np.int8], occupancy_map: np.ndarray, entity_map: np.ndarray, state: State, target) -> np.ndarray:
+def compute_path_map(tile_map_size: Tuple[np.int32, np.int32], occupancy_map: np.ndarray, entity_map: np.ndarray, state: State, target) -> np.ndarray:
     """Computes the path that the drone will use for its pathfinding
 
     Args:
@@ -90,13 +98,16 @@ def compute_path_map(tile_map_size: Tuple[np.int8, np.int8], occupancy_map: np.n
             # region updates entity_map
             if occupancy_map[x, y] < 0:
                 entity_map[x, y] = Entity.VOID.value
-            elif occupancy_map[x, y] > 0 and entity_map[x, y] != Entity.BASE.value:
+            elif occupancy_map[x, y] > 0 and entity_map[x, y] != Entity.BASE.value and entity_map[x, y] != Entity.DRONE.value:
                 entity_map[x, y] = Entity.WALL.value
+
             # endregion
             if x == 0 or x == tile_map_size[0] - 1 or y == 0 or y == tile_map_size[1] - 1 or occupancy_map[x, y] > 0 or entity_map[x, y] == Entity.KILL.value:
                 path_map[x, y] = 0
                 if entity_map[x, y] == Entity.KILL.value:
                     weight = WALL_WEIGHT * KILL_RELUCTANCE
+                elif entity_map[x, y] == Entity.DRONE.value:
+                    weight = WALL_WEIGHT * DRONE_RELUCTANCE
                 else:
                     weight = WALL_WEIGHT
                 for i in np.arange(max(int(x - WALL_RUNOFF), 0), min(int(x + WALL_RUNOFF), tile_map_size[0]-1)):
@@ -155,4 +166,4 @@ def find_path(tile_map_size: Tuple[int, int], path_map: np.ndarray, tile_pos: np
     if len(computed_path) > 2:
         return computed_path[1:]
     else:
-        return []
+        return computed_path

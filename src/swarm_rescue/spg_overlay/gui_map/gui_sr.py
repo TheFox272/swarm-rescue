@@ -333,11 +333,13 @@ class GuiSR(TopDownView):
         # region ADDED
         if key == arcade.key.TAB:
             new_drone_num = (self._focused_drone + 1) % self._number_drones
+            self._drones[new_drone_num].draw_id = self._drones[self._focused_drone].draw_id
             self._drones[new_drone_num].draw_grid = self._drones[self._focused_drone].draw_grid
             self._drones[new_drone_num].draw_path = self._drones[self._focused_drone].draw_path
             self._drones[new_drone_num].draw_waypoints = self._drones[self._focused_drone].draw_waypoints
             self._drones[new_drone_num].draw_path_map = self._drones[self._focused_drone].draw_path_map
             self._drones[new_drone_num].draw_entity_map = self._drones[self._focused_drone].draw_entity_map
+            self._drones[self._focused_drone].draw_id = False
             self._drones[self._focused_drone].draw_grid = False
             self._drones[self._focused_drone].draw_path = False
             self._drones[self._focused_drone].draw_waypoints = False
@@ -345,6 +347,8 @@ class GuiSR(TopDownView):
             self._drones[self._focused_drone].draw_entity_map = False
             self._focused_drone = new_drone_num
 
+        if key == arcade.key.NUM_ADD:
+            self._drones[self._focused_drone].draw_id = 1 - self._drones[self._focused_drone].draw_id
         if key == arcade.key.NUM_0:
             self._drones[self._focused_drone].draw_grid = 1 - self._drones[self._focused_drone].draw_grid
         if key == arcade.key.NUM_1:
