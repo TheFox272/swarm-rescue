@@ -330,17 +330,17 @@ class GuiSR(TopDownView):
             self._draw_semantic_rays = not self._draw_semantic_rays
 
         # region ADDED
-        if key == arcade.key.NUM_0:
+        if key in [arcade.key.NUM_0, 64]:  # 64=@ on mac keyboard
             self._drones[0].draw_grid = 1 - self._drones[0].draw_grid
-        if key == arcade.key.NUM_1:
+        if key == [arcade.key.NUM_1, 49]:  # 49=& on mac keyboard
             self._drones[0].draw_path = 1 - self._drones[0].draw_path
-        if key == arcade.key.NUM_2:
+        if key == [arcade.key.NUM_2, 50]:  # 50=é on mac keyboard
             self._drones[0].draw_waypoints = 1 - self._drones[0].draw_waypoints
-        if key == arcade.key.NUM_3:
+        if key == [arcade.key.NUM_3, 51]:   # 51=" on mac keyboard
             self._drones[0].draw_path_map = 1 - self._drones[0].draw_path_map
             if self._drones[0].draw_entity_map:
                 self._drones[0].draw_entity_map = 1 - self._drones[0].draw_entity_map
-        if key == arcade.key.NUM_4:
+        if key == [arcade.key.NUM_4, 52]:  # 52=' on mac keyboard
             self._drones[0].draw_entity_map = 1 - self._drones[0].draw_entity_map
             if self._drones[0].draw_path_map:
                 self._drones[0].draw_path_map = 1 - self._drones[0].draw_path_map
