@@ -2,9 +2,9 @@ import math as m
 
 import numpy as np
 
-from swarm_rescue.solutions.assets.behavior.think import VICTIM_WAITING_NB
+from swarm_rescue.solutions.assets.behavior.think import VICTIM_WAITING_NB, VICTIM_RESCUED_NB
 from swarm_rescue.solutions.assets.mapping.mapping_constants import TILE_SIZE, VICTIM_RADIUS
-from swarm_rescue.solutions.assets.movement.pathfinding import BASE_WEIGHT
+from swarm_rescue.solutions.assets.movement.pathfinding import BASE_WEIGHT, WALL_WEIGHT
 from swarm_rescue.solutions.assets.mapping.entity import Entity
 from swarm_rescue.solutions.assets.behavior.state import State
 from swarm_rescue.spg_overlay.entities.drone_distance_sensors import DroneSemanticSensor
@@ -14,8 +14,9 @@ def process_semantic(semantic_values, pos, tile_map_size, victims, state, bases,
     distance_from_closest_victim = m.inf
     victim_angle = victim_angle
     distance_from_closest_base = m.inf
+    distance_from_closest_drone = m.inf
 
-    if len(semantic_values) != 0 and not m.isnan(semantic_values[0].distance):
+    if semantic_values is not None and len(semantic_values) != 0 and not m.isnan(semantic_values[0].distance):
 
         for data in semantic_values:
             ray_angle = data.angle + pos[2]
@@ -24,28 +25,32 @@ def process_semantic(semantic_values, pos, tile_map_size, victims, state, bases,
             tile_target_x = max(0, min(int(round(target_x / TILE_SIZE, 0)), tile_map_size[0] - 1))
             tile_target_y = max(0, min(int(round(target_y / TILE_SIZE, 0)), tile_map_size[1] - 1))
 
-            if data.entity_type.value == DroneSemanticSensor.TypeEntity.WOUNDED_PERSON.value:
+            if data.entity_type.value == DroneSemanticSensor.TypeEntity.WOUNDED_PERSON.value and data.grasped is False:
                 margin = m.ceil(4 * VICTIM_RADIUS / TILE_SIZE) + 1
-                if data.grasped is False :
-                    new_victim = True
-                    for victim in victims:
-                        if m.dist(victim[:2], [tile_target_x, tile_target_y]) < margin:
-                            new_victim = False
-                            victim[0] = (victim[0] + tile_target_x) / 2
-                            victim[1] = (victim[1] + tile_target_y) / 2
-                    if new_victim:
-                        victims.append([tile_target_x, tile_target_y, VICTIM_WAITING_NB])
-                    if state == State.RESCUE.value and data.distance < distance_from_closest_victim:
-                        distance_from_closest_victim = data.distance
-                        victim_angle = data.angle
+                new_victim = True
+                for victim in victims:
+                    if m.dist(victim[:2], [tile_target_x, tile_target_y]) < margin:
+                        new_victim = False
+                        victim[0] = int((victim[0] + tile_target_x) / 2)
+                        victim[1] = int((victim[1] + tile_target_y) / 2)
+                        if victim[2] == VICTIM_RESCUED_NB:  # possible if another victim is pushed into a former one position
+                            victim[2] = VICTIM_WAITING_NB
+                if new_victim:
+                    victims.append([tile_target_x, tile_target_y, VICTIM_WAITING_NB])
+                if state == State.RESCUE.value and data.distance < distance_from_closest_victim:
+                    distance_from_closest_victim = data.distance
+                    victim_angle = data.angle
 
+                """
+                TODO: utiliser fonction de Louis pour faire plus propre
+                """
                 vector = np.array(pos[:2]) - np.array((tile_target_x, tile_target_y)) * TILE_SIZE
                 vector /= np.linalg.norm(vector)
                 for p in set([(tile_target_x + int(t * vector[0]) // TILE_SIZE, tile_target_y + int(t * vector[1]) // TILE_SIZE)
                               for t in np.arange(0, margin * TILE_SIZE / 2, TILE_SIZE // 4)]):
                     entity_map[p] = Entity.VOID.value
-                    occupancy_map[p] = -1  # to change
-                    path_map[p] = BASE_WEIGHT
+                    occupancy_map[p] = -1  # WIP
+                occupancy_map[tile_target_x, tile_target_y] = 1  # WIP
 
             elif data.entity_type.value == DroneSemanticSensor.TypeEntity.RESCUE_CENTER.value:
                 margin = 2
@@ -55,4 +60,9 @@ def process_semantic(semantic_values, pos, tile_map_size, victims, state, bases,
                 if data.distance < distance_from_closest_base:
                     distance_from_closest_base = data.distance
 
-    return distance_from_closest_victim, victim_angle, distance_from_closest_base
+            elif data.entity_type.value == DroneSemanticSensor.TypeEntity.DRONE.value:
+                if data.distance < distance_from_closest_drone:
+                    distance_from_closest_drone = data.distance
+                occupancy_map[tile_target_x, tile_target_y] = 1  # WIP
+
+    return distance_from_closest_victim, victim_angle, distance_from_closest_base, distance_from_closest_drone

@@ -1,17 +1,9 @@
-import gc
-from typing import Tuple
-
 import sys, os
-# This line add, to sys.path, the path to parent path of this file
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# # This line add, to sys.path, the path to parent path of this file
+# sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from spg_overlay.entities.sensor_disablers import ZoneType
-from spg_overlay.utils.constants import DRONE_INITIAL_HEALTH
-from spg_overlay.reporting.evaluation import EvalConfig, EvalPlan, ZonesConfig
-from spg_overlay.reporting.score_manager import ScoreManager
-from spg_overlay.reporting.data_saver import DataSaver
-from spg_overlay.reporting.screen_recorder import ScreenRecorder
-from spg_overlay.reporting.team_info import TeamInfo
 from spg_overlay.gui_map.gui_sr import GuiSR
 
 from maps.map_intermediate_01 import MyMapIntermediate01
@@ -22,16 +14,20 @@ from maps.map_medium_02 import MyMapMedium02
 
 from solutions.myFirstDrone import MyFirstDrone
 
+
 # Drone selection
 class MyDrone(MyFirstDrone):
     pass
 
+
 # Map selection
-class MyMap(MyMapIntermediate01):
+class MyMap(MyMapIntermediate02):
     pass
 
+
 def main():
-    my_map = MyMap()
+    my_map = MyMap(zones_config=[ZoneType.KILL_ZONE, ZoneType.NO_GPS_ZONE, ZoneType.NO_COM_ZONE])
+    my_map._real_time_limit = 100000000
 
     playground = my_map.construct_playground(drone_type=MyDrone)
 

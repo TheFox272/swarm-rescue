@@ -25,7 +25,7 @@ from swarm_rescue.solutions.assets.mapping.draw_grid import draw_map
 from swarm_rescue.solutions.assets.behavior.state import State
 from swarm_rescue.solutions.assets.behavior.map_split import zone_split, waypoint_pos, ZONE_SIZE
 from swarm_rescue.solutions.assets.movement.pathfinding import BASE_WEIGHT, CLOUD_BONUS, WALL_WEIGHT
-from swarm_rescue.solutions.assets.behavior.think import compute_behavior, is_defined
+from swarm_rescue.solutions.assets.behavior.think import compute_behavior, is_defined, undefined_index, undefined_target
 
 
 # region local constants
@@ -60,10 +60,10 @@ class MyFirstDrone(DroneAbstract):
         """
         The map size, in pixels.
         """
-        self.tile_map_size = tuple([np.int8(size / TILE_SIZE) for size in self.map_size])
+        self.tile_map_size = tuple([np.int32(size / TILE_SIZE) for size in self.map_size])
         """
         The map size, in tiles.
-        :type: tuple[int8, int8]
+        :type: tuple[int32, int32]
         """
         self.occupancy_map = np.zeros(self.tile_map_size, dtype=np.float32)
         """
@@ -113,21 +113,25 @@ class MyFirstDrone(DroneAbstract):
         # endregion
         # region behavior init
         self.state = State.BOOT.value
+        # if self.id != 0:
+        #     self.state = State.DONE.value
         """
         The int value corresponding to the state of the drone, among :py:class:`~swarm_rescue.solutions.assets.behavior.state.State`.
         
         :type: State
         """
-        self.waypoints, self.n_width, self.n_height = zone_split(self.tile_map_size, self.tile_pos, 1, 1)  # WIP
-        self.target_waypoint = (0, 0)
+        self.waypoints, self.n_width, self.n_height = zone_split(self.tile_map_size, self.tile_pos, 10, self.id)  # WIP
+        self.target_indication = {"victim": undefined_index, "waypoint": undefined_target, "base": False}
         self.victims = list()
         self.distance_from_closest_victim = m.inf
         self.distance_from_closest_base = m.inf
+        self.distance_from_closest_drone = m.inf
         self.victim_angle = 0
-        self.timers = {"waypoints_scan": 0, "victim_wait": 0}
+        self.timers = {"waypoints_scan": 0, "victim_wait": 0, "believe_wait": 0, "base_scan": 0}
         # endregion
 
         # region drawing (to comment out for eval)
+        self.draw_id = False
         self.draw_path = False
         self.draw_path_map = False
         self.draw_entity_map = False
@@ -139,7 +143,6 @@ class MyFirstDrone(DroneAbstract):
         self.cycle = 0
         # endregion
 
-
     @property
     def in_noGPSzone(self):
         return self.measured_gps_position() is None
@@ -149,13 +152,22 @@ class MyFirstDrone(DroneAbstract):
         return len(self.grasped_entities()) != 0
 
     @property
+    def is_dead(self):
+        return self.odometer_values() is None
+
+    @property
     def tile_pos(self):
         return [(self.pos[0] / TILE_SIZE + 0.5).astype(int), (self.pos[1] / TILE_SIZE + 0.5).astype(int), self.pos[2]]
 
     def update_position(self):
-        self.speed[0] = self.odometer_values()[0] * m.cos(self.pos[2] + self.odometer_values()[1])
-        self.speed[1] = self.odometer_values()[0] * m.sin(self.pos[2] + self.odometer_values()[1])
-        self.speed[2] = self.odometer_values()[2]
+        if self.odometer_values() is not None:
+            self.speed[0] = self.odometer_values()[0] * m.cos(self.pos[2] + self.odometer_values()[1])
+            self.speed[1] = self.odometer_values()[0] * m.sin(self.pos[2] + self.odometer_values()[1])
+            self.speed[2] = self.odometer_values()[2]
+        else:
+            self.speed[0] = 0
+            self.speed[1] = 0
+            self.speed[2] = 0
         if not self.in_noGPSzone:
             if not m.isnan(self.measured_gps_position()[0]):
                 self.pos[0] = self.measured_gps_position()[0] + self.map_size[0] / 2
@@ -176,18 +188,21 @@ class MyFirstDrone(DroneAbstract):
         """
         How the drone moves
         """
+        if self.is_dead:
+            return None
+
         self.update_position()
         self.occupancy_map = process_lidar(self.occupancy_map, self.map_size, TILE_SIZE, self.tile_map_size, self.lidar_values(), self.lidar_rays_angles(),
                                            self.pos, self.pos[2])
-        self.distance_from_closest_victim, self.victim_angle, self.distance_from_closest_base = process_semantic(self.semantic_values(), self.pos,
-                                                                                                                 self.tile_map_size, self.victims, self.state,
-                                                                                                                 self.bases, self.entity_map, self.path_map,
-                                                                                                                 self.occupancy_map, self.victim_angle)
+        (self.distance_from_closest_victim, self.victim_angle, self.distance_from_closest_base,
+         self.distance_from_closest_drone) = process_semantic(self.semantic_values(), self.pos, self.tile_map_size, self.victims, self.state, self.bases, self.entity_map,
+                                                              self.path_map, self.occupancy_map, self.victim_angle)
         self.path_map = compute_path_map(self.tile_map_size, self.occupancy_map, self.entity_map, self.state, self.target)
-        self.state, self.target, self.target_waypoint = compute_behavior(self.id, self.target, self.target_waypoint, self.tile_pos, self.path, self.speed,
-                                                                         self.state, self.victims, self.distance_from_closest_victim, self.bases,
-                                                                         self.distance_from_closest_base, self.got_victim, self.waypoints, self.n_width,
-                                                                         self.n_height, self.tile_map_size, self.entity_map, self.path_map, self.timers)
+
+        self.state, self.target = compute_behavior(self.id, self.target, self.target_indication, self.tile_pos, self.path, self.speed, self.state, self.victims,
+                                                   self.distance_from_closest_victim, self.bases, self.distance_from_closest_base, self.got_victim, self.waypoints,
+                                                   self.n_width, self.n_height, self.tile_map_size, self.entity_map, self.path_map, self.timers,
+                                                   self.distance_from_closest_drone)
 
         if is_defined(self.target):
             self.path = find_path(self.tile_map_size, self.path_map, self.tile_pos, self.target, self.speed)
@@ -279,3 +294,7 @@ class MyFirstDrone(DroneAbstract):
                 arcade.draw_line(i * TILE_SIZE, 0, i * TILE_SIZE, self.map_size[1], arcade.color.BLACK, 1)
             for i in range(0, self.tile_map_size[1]):
                 arcade.draw_line(0, i * TILE_SIZE, self.map_size[0], i * TILE_SIZE, arcade.color.BLACK, 1)
+
+        if self.draw_id:
+            arcade.draw_text(str(self.id), x + 15, y - 15, arcade.color.BLACK, 15)  # draw id
+
