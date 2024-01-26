@@ -20,6 +20,16 @@ def create_msg(msg_type: MsgType, msg_data, drone_id: int, tick: int, msg_id):
 
 
 def compute_received_com(received_messages, already_procced_msgs, id):
+    """
+    Compute the messages to send and the messages to procced
+    Args:
+        received_messages: self.communicator.received_messages
+        already_procced_msgs: a list indexed by sender_id containing the msg_id of the messages already procced
+        id: the id of the drone receiving the messages
+
+    Returns:
+
+    """
     to_send = []
     for msg in received_messages:
         msg = msg[1]
@@ -31,8 +41,12 @@ def compute_received_com(received_messages, already_procced_msgs, id):
             if sender_id == id:
                 continue
 
+            # if the message was already procced, we ignore it
+            if 'msg_id' in msg_content and msg_content['msg_id'] in already_procced_msgs[sender_id]:
+                continue
+
             # if the message as transmit to true and is not only for us, we transmit it
-            if 'transmit' in msg_content and msg_content['transmit'] and msg_content['dest'] != self.id and :
+            if 'transmit' in msg_content and msg_content['transmit'] and msg_content['dest'] != id:
                 if 'transmit_by' not in msg_content:
                     msg_content['transmit_by'] = []
                 if id not in msg_content['transmit_by']:
@@ -43,6 +57,22 @@ def compute_received_com(received_messages, already_procced_msgs, id):
             if msg_content['dest'] != id and msg_content['dest'] != 'all':
                 continue
 
+            procces_message(msg_content, sender_id, msg_type)
+
     return to_send
 
 
+def procces_message(msg_content, sender_id, msg_type):
+    """
+    Process the message
+    Args:
+        msg_content: the message content
+        sender_id: the sender id
+        msg_type: the message type
+
+    Returns:
+
+    """
+    match msg_type:
+        case MsgType.ALIVE:
+            pass

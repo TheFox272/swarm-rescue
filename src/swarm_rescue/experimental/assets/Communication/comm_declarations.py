@@ -1,8 +1,10 @@
 from enum import Enum
 
+
 class MsgType(Enum):
     """Message types"""
-    allive = 0
+    # !! All MsgType names must be in uppercase (for good practice) !!
+    ALIVE = 0
 
     # Message types from older version
     # group_req = 0
