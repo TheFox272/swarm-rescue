@@ -1,5 +1,5 @@
 from comm_declarations import MsgType
-
+import share
 
 def create_msg(msg_type: MsgType, msg_data, drone_id: int, tick: int, msg_id):
     """
@@ -19,7 +19,7 @@ def create_msg(msg_type: MsgType, msg_data, drone_id: int, tick: int, msg_id):
     return {'sender_id': drone_id, 'tick': tick, 'msg_id': msg_id, 'dest': 'all', 'type': msg_type, 'data': msg_data, 'transmit': False}
 
 
-def compute_received_com(received_messages, already_procced_msgs, id):
+def compute_received_com(received_messages, already_procced_msgs, id, my_victims):
     """
     Compute the messages to send and the messages to procced
     Args:
@@ -57,12 +57,14 @@ def compute_received_com(received_messages, already_procced_msgs, id):
             if msg_content['dest'] != id and msg_content['dest'] != 'all':
                 continue
 
-            procces_message(msg_content, sender_id, msg_type)
+            already_procced_msgs[sender_id].append(msg_content['msg_id'])
+            procces_message(msg_content, sender_id, msg_type, my_victims)
 
     return to_send
 
 
-def procces_message(msg_content, sender_id, msg_type):
+
+def procces_message(msg_content, sender_id, msg_type, my_victims):
     """
     Process the message
     Args:
@@ -76,3 +78,5 @@ def procces_message(msg_content, sender_id, msg_type):
     match msg_type:
         case MsgType.ALIVE:
             pass
+        case MsgType.SHARE_VICTIMS:
+            share.share_victims(my_victims, msg_content['data'])
