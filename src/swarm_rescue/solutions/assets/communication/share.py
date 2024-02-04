@@ -1,9 +1,13 @@
 from typing import List
-
 import numpy as np
+import numba as nb
+
+from solutions.assets.communication.comm_declarations import MsgType, VICTIM_MIN_DIST
 
 
 
+def intersect_waypoints(waypoints: np.array, other_waypoints: np.array):
+    waypoints[other_waypoints == 0] = 0
 
 
 def share_map():
@@ -40,14 +44,25 @@ def share_map():
     pass
 
 
-def share_victims(my_victims:List, others_victims:List[List]):
+def share_victims(my_victims: List, other_victims: List):
     """
     By Louis
     Returns
     -------
-
     """
-    pass
+
+    for tile_x, tile_y, savior in my_victims:
+        for other_tile_x, other_tile_y, other_savior in other_victims:
+            # If the distance between the two victims is less than VICTIM_MIN_DIST, we consider them as the same victim
+            if np.sqrt((tile_x - other_tile_x)**2 + (tile_y - other_tile_y)**2) < VICTIM_MIN_DIST:
+                # We keep the savior with the highest id
+                # TODO : check if using a trust factor is relevant
+                if savior > other_savior:
+                    other_victims.remove((other_tile_x, other_tile_y, other_savior))
+                else:
+                    my_victims.remove((tile_x, tile_y, savior))
+
+    return my_victims + other_victims
 
 
 

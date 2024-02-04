@@ -8,6 +8,8 @@ import time
 
 import os, sys
 
+from swarm_rescue.solutions.assets.communication.comm_declarations import MsgType
+from swarm_rescue.solutions.assets.communication.comm_manager import compute_received_com, create_msg
 from swarm_rescue.solutions.assets.mapping.entity import Entity
 
 # This line add, to sys.path, the path to parent path of this file
@@ -106,21 +108,20 @@ class MyFirstDrone(DroneAbstract):
         """
         self.bases = list()
         """
-        The list of the detected base tiles. Each one of this elements is of the form [tile_x, tile_y].
+        The list of the detected base tiles. Each one of the list's elements is of the form [tile_x, tile_y].
 
         :type: list of 2-elements lists
         """
         # endregion
         # region behavior init
         self.state = State.BOOT.value
-        # if self.id != 0:
-        #     self.state = State.DONE.value
         """
         The int value corresponding to the state of the drone, among :py:class:`~swarm_rescue.solutions.assets.behavior.state.State`.
         
         :type: State
         """
-        self.waypoints, self.n_width, self.n_height = zone_split(self.tile_map_size, self.tile_pos, 10, self.id)  # WIP
+        self.nb_drones = misc_data.number_drones
+        self.waypoints, self.n_width, self.n_height = zone_split(self.tile_map_size, self.tile_pos, self.nb_drones, self.id)  # WIP
         self.target_indication = {"victim": undefined_index, "waypoint": undefined_target, "base": False}
         self.victims = list()
         self.distance_from_closest_victim = m.inf
@@ -129,7 +130,32 @@ class MyFirstDrone(DroneAbstract):
         self.victim_angle = 0
         self.timers = {"waypoints_scan": 0, "victim_wait": 0, "believe_wait": 0, "base_scan": 0}
         # endregion
-
+        # region communication
+        self.msg_sent = 0
+        """
+        The number of messages sent by this drone.
+        
+        :type: uint
+        """
+        self.to_send = list()
+        """
+        The stack of messages that the drone need to send at the end of a cycle
+        
+        :type: list of messages, see *WIP*
+        """
+        self.alive_received = list()
+        """
+        The list of the alive ids and positions that the other drones sent during a cycle. Each one of the list's elements is of the form [id, tile_x, tile_y].
+ 
+        :type: list of 3-elements list
+        """
+        self.processed_msg = [[]] * self.nb_drones
+        """
+        A list you can find the list of messages sent by other drones and processed by this drone.
+        
+        :type: List[List[int]]
+        """
+        # endregion
         # region drawing (to comment out for eval)
         self.draw_id = False
         self.draw_path = False
@@ -179,10 +205,18 @@ class MyFirstDrone(DroneAbstract):
             self.pos[2] += self.speed[2]
 
     def define_message_for_all(self):
-        """
-        Here, we don't need communication...
-        """
-        pass
+
+        self.to_send = []
+        self.alive_received = []
+
+        self.to_send.append(create_msg(MsgType.ALIVE.value, 'all', [self.id, self.tile_pos[0], self.tile_pos[1]], self.id, self.msg_sent))
+        self.to_send.append(create_msg(MsgType.SHARE_WAYPOINTS.value, 'all', self.waypoints, self.id, self.msg_sent + 1))
+
+        compute_received_com(self.communicator.received_messages, self.to_send, self.alive_received, self.processed_msg, self.id, self.waypoints, self.bases)
+
+        self.msg_sent += len(self.to_send)
+
+        return self.to_send
 
     def control(self):
         """
@@ -219,6 +253,7 @@ class MyFirstDrone(DroneAbstract):
 
         command = compute_command(self.path, self.path_map, self.tile_pos, self.state, self.victim_angle, self.distance_from_closest_base)
         return command
+
 
     def draw_bottom_layer(self):  # (to comment out for eval)
 
