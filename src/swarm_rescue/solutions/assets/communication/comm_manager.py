@@ -1,11 +1,16 @@
 import numpy as np
 
 from solutions.assets.communication.comm_declarations import MsgType
-from solutions.assets.communication.share import intersect_waypoints
 from typing import List, Tuple
 
+from swarm_rescue.solutions.assets.communication.share import intersect_waypoints, intersect_bases, intersect_occupancy, intersect_entity, intersect_victims
 
-def create_msg(msg_type: MsgType, dest, msg_data, drone_id: int, msg_id: np.uint, transmit=False):
+# region local constants
+MAX_MESSAGE_MEMORY = 20
+# endregion
+
+
+def create_msg(msg_type: MsgType, destination, msg_data, drone_id: int, msg_id: np.ndarray, transmit=False):
     """
     Creates a message
 
@@ -20,10 +25,11 @@ def create_msg(msg_type: MsgType, dest, msg_data, drone_id: int, msg_id: np.uint
     transmit : a boolean indicating if the message should be transmitted between drone
     (which means a drone which receive a message that was not (or not only) for him will send the message on its own)
     """
-    return {'sender': drone_id, 'msg_id': msg_id, 'dest': dest, 'type': msg_type, 'data': msg_data, 'transmit': transmit}
+    msg_id[0] += 1
+    return {'sender': drone_id, 'msg_id': msg_id[0]-1, 'dest': destination, 'type': msg_type, 'data': msg_data, 'transmit': transmit}
 
 
-def compute_received_com(received_messages, to_send, alive_received, processed_msg, id, waypoints, bases):
+def compute_received_com(received_messages, to_send, alive_received, processed_msg, abandon_victim, id, waypoints, bases, occupancy_map, entity_map, victims):
     """
     Compute the messages to send and the messages to proceed
     Args:
@@ -49,7 +55,6 @@ def compute_received_com(received_messages, to_send, alive_received, processed_m
             # if the message was already processed, we ignore it
             elif msg_content['msg_id'] in processed_msg[sender_id]:
                 continue
-
             # if the message is not for all and not for this drone, then ignore it
             elif not msg_content['transmit'] and dest_id != id and dest_id != 'all':
                 continue
@@ -63,14 +68,13 @@ def compute_received_com(received_messages, to_send, alive_received, processed_m
                     to_send.append(msg_content)
 
             if dest_id == 'all' or dest_id == id:
-                process_message(msg_type, msg_content['data'], to_send, alive_received, processed_msg, id, waypoints, bases)
-                processed_msg[sender_id].append(msg_content['msg_id'])
+                process_message(msg_type, msg_content['data'], alive_received, abandon_victim, id, waypoints, bases, occupancy_map, entity_map, victims)
+                processed_msg[sender_id] = processed_msg[sender_id][-MAX_MESSAGE_MEMORY:] + [msg_content['msg_id']]
 
     return to_send
 
 
-
-def process_message(msg_type, data, to_send, alive_received, processed_msg, id, waypoints, bases):
+def process_message(msg_type, data, alive_received, abandon_victim, id, waypoints, bases, occupancy_map, entity_map, victims):
     """
     Process the message
     Args:
@@ -88,18 +92,22 @@ def process_message(msg_type, data, to_send, alive_received, processed_msg, id, 
         case MsgType.SHARE_WAYPOINTS.value:
             intersect_waypoints(waypoints, data)
 
+        case MsgType.SHARE_BASES.value:
+            intersect_bases(bases, data)
 
+        case MsgType.SHARE_OCCUPANCY_MAP.value:
+            intersect_occupancy(occupancy_map, data)
 
+        case MsgType.SHARE_ENTITY_MAP.value:
+            intersect_entity(entity_map, data)
 
+        case MsgType.SHARE_VICTIMS.value:
+            if not victims:
+                victims.extend(data)
+            else:
+                abandon_victim[0] = intersect_victims(victims, data, id) or abandon_victim[0]
 
-
-
-
-
-
-
-
-
-
+        case _:  # for testing
+            print(f"Issue: a message of unknown type {msg_type} was received")
 
 

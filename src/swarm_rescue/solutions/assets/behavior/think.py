@@ -145,9 +145,13 @@ undefined_index = -1
 
 
 def compute_behavior(id, target, target_indication, tile_pos, path, speed, state, victims, distance_from_closest_victim, bases, distance_from_closest_base,
-                     got_victim, waypoints, n_width, n_height, tile_map_size, entity_map, path_map, timers, distance_from_closest_drone):
+                     got_victim, waypoints, n_width, n_height, tile_map_size, entity_map, path_map, timers, distance_from_closest_drone, abandon_victim):
 
-
+    if timers["waypoints_scan"] == WAYPOINTS_SCAN:
+        timers["waypoints_scan"] = 0
+        waypoints_scan(n_width, n_height, waypoints, tile_map_size, entity_map)
+    else:
+        timers["waypoints_scan"] += 1
     
     if state == State.BOOT.value:
         # TODO boot
@@ -165,11 +169,6 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
             target_indication["victim"] = best_victim_index
             return State.RESCUE.value, tuple(victims[best_victim_index][:2])
         else:
-            if timers["waypoints_scan"] == WAYPOINTS_SCAN:
-                timers["waypoints_scan"] = 0
-                waypoints_scan(n_width, n_height, waypoints, tile_map_size, entity_map)
-            else:
-                timers["waypoints_scan"] += 1
             if is_defined(target_indication["waypoint"]):
                 if is_explored(waypoints, target_indication["waypoint"], path, tile_map_size, entity_map):
                     waypoints[target_indication["waypoint"]] = 0
@@ -186,6 +185,12 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
                     return State.EXPLORE.value, waypoint_pos(target_waypoint[0], target_waypoint[1])
 
     elif state == State.RESCUE.value:
+
+        if abandon_victim[0]:
+            abandon_victim[0] = False
+            target_indication["victim"] = undefined_index
+            print(f"{id}: leaving my target")
+            return State.EXPLORE.value, undefined_target
 
         # actualise victim position
         target = tuple(victims[target_indication["victim"]][:2])
@@ -213,6 +218,12 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
             return State.RESCUE.value, target
 
     elif state == State.SAVE.value:
+
+        if abandon_victim[0]:  # if told to let the victim while he was about to catch it, catch is nonetheless
+            abandon_victim[0] = False
+            victims[target_indication["victim"]][2] = id
+            print(f"{id}: I do not care, I'll catch it")
+
         if not target_indication["base"] and got_victim:
             target_indication["base"] = True
 

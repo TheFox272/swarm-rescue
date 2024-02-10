@@ -1,8 +1,5 @@
 from enum import Enum
 
-#TODO: Experiment with different values for these constants
-VICTIM_MIN_DIST = 4  # Minimum distance between 2 victims to be considered as different victims when sharing victims
-                     # used in share.py in share_victims function
 
 class MsgType(Enum):
     """Message types"""

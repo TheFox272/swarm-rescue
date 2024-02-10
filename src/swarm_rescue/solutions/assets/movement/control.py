@@ -23,7 +23,7 @@ K_FOR = 0.4
 Constant used in :py:func:`compute_command` to compute the forward thrust command of the drone
 
 :type: float
-:domain: [0, 1]list(list())
+:domain: [0, 1]
 """
 K_LAT = 0.7
 """

@@ -2,71 +2,90 @@ from typing import List
 import numpy as np
 import numba as nb
 
-from solutions.assets.communication.comm_declarations import MsgType, VICTIM_MIN_DIST
+from solutions.assets.communication.comm_declarations import MsgType
+
+from swarm_rescue.solutions.assets.behavior.think import VICTIM_RESCUED_NB
+from swarm_rescue.solutions.assets.mapping.semanticMapping import VICTIM_DETECTION_MARGIN
+
+# region local constants
+OWN_OCCUPANCY_WEIGHT = 0.6
+"""
 
 
+:type: float
+:domain: [0, 1]
+"""
+VICTIM_MIN_DIST = VICTIM_DETECTION_MARGIN
+# endregion
 
-def intersect_waypoints(waypoints: np.array, other_waypoints: np.array):
+
+def intersect_waypoints(waypoints: np.ndarray, other_waypoints: np.ndarray):
     waypoints[other_waypoints == 0] = 0
 
 
-def share_map():
-    """
-    Use last years function :
-    @nb.njit
-    def map_intersect(presence_map1, entity_map1, trust_map1, presence_map2, entity_map2, trust_map2, map_size):
-        #TODO remove trust factor by Fabien
-        new_presence_map = np.zeros(map_size, dtype=np.float32)
-        new_entity_map = np.zeros(map_size, dtype=np.int8)
-        new_trust_map = -np.ones(map_size, dtype=np.int8)
-
-        for i in range(map_size[0]):
-            for j in range(map_size[1]):
-                if (2+trust_map1[i,j]+trust_map2[i,j] != 0):
-                    new_presence_map[i,j] = (presence_map1[i,j] * (trust_map1[i,j]+1) + presence_map2[i,j] * (trust_map2[i,j]+1)) / (2+trust_map1[i,
-                    j]+trust_map2[i,j])
-                    new_trust_map[i,j] = 2 + trust_map1[i,j] + trust_map2[i,j]
-                if (entity_map1[i,j] == Entity.BASE.value or entity_map2[i,j] == Entity.BASE.value):
-                    new_entity_map[i,j] = Entity.BASE.value
-                elif (entity_map1[i,j] == Entity.KILL.value or entity_map2[i,j] == Entity.KILL.value):
-                    new_entity_map[i,j] = Entity.KILL.value
-                elif (entity_map1[i,j] == Entity.NOCOM.value or entity_map2[i,j] == Entity.NOCOM.value):
-                    new_entity_map[i,j] = Entity.NOCOM.value
-                elif (entity_map1[i,j] == Entity.NOGPS.value or entity_map2[i,j] == Entity.NOGPS.value):
-                    new_entity_map[i,j] = Entity.NOGPS.value
-                elif (trust_map1[i,j] >= trust_map2[i,j]):
-                    new_entity_map[i,j] = entity_map1[i,j]
-                else:
-                    new_entity_map[i, j] = entity_map2[i, j]
-
-        return new_presence_map, new_entity_map, new_trust_map
-    """
-    pass
+def intersect_bases(bases: List, other_bases: List):
+    set_bases = set(map(tuple, bases))
+    set_other_bases = set(map(tuple, other_bases))
+    bases[:] = list(map(list, set_bases.union(set_other_bases)))
 
 
-def share_victims(my_victims: List, other_victims: List):
-    """
-    By Louis
-    Returns
-    -------
-    """
-
-    for tile_x, tile_y, savior in my_victims:
-        for other_tile_x, other_tile_y, other_savior in other_victims:
-            # If the distance between the two victims is less than VICTIM_MIN_DIST, we consider them as the same victim
-            if np.sqrt((tile_x - other_tile_x)**2 + (tile_y - other_tile_y)**2) < VICTIM_MIN_DIST:
-                # We keep the savior with the highest id
-                # TODO : check if using a trust factor is relevant
-                if savior > other_savior:
-                    other_victims.remove((other_tile_x, other_tile_y, other_savior))
-                else:
-                    my_victims.remove((tile_x, tile_y, savior))
-
-    return my_victims + other_victims
+def intersect_occupancy(occupancy: np.ndarray, other_occupancy: np.ndarray):
+    np.add(np.multiply(occupancy, OWN_OCCUPANCY_WEIGHT), np.multiply(other_occupancy, 1 - OWN_OCCUPANCY_WEIGHT), out=occupancy)
 
 
+def intersect_entity(entity: np.ndarray, other_entity: np.ndarray):
+    np.maximum(entity, other_entity, out=entity)
 
 
+def intersect_victims(victims: List, other_victims: List, drone_id: np.uint8):
+    abandon_victim = False
+
+    # We'll use arrays to be faster
+    victims_array = np.array(victims, dtype=np.int32)
+    other_victims_array = np.array(other_victims, dtype=np.int32)
+
+    # Here we compute all the distances between the victims of both lists, to eventually find those who are the same
+    distances = np.linalg.norm(other_victims_array[:, :2] - victims_array[:, :2].reshape(-1, 1, 2), axis=2)
+
+    for i, (tile_x, tile_y, savior) in enumerate(victims_array):
+        if savior == VICTIM_RESCUED_NB:
+            continue
+
+        close_indices = np.where(distances[i] < VICTIM_MIN_DIST)[0]
+
+        if close_indices.size > 0:
+            min_savior = other_victims_array[close_indices, 2].min()
+
+            if min_savior < savior and min_savior == VICTIM_RESCUED_NB:
+                victims_array[i, 2] = VICTIM_RESCUED_NB
+                if savior == drone_id:
+                    abandon_victim = True
+                    print(f"{drone_id} was told there is no victim here anymore")
+
+    victims[:] = victims_array.tolist()
+
+    remaining_indices = np.setdiff1d(np.arange(len(other_victims_array)), np.where(np.any(distances < VICTIM_MIN_DIST, axis=0))[0])
+    victims.extend(other_victims_array[remaining_indices].tolist())
+
+    return abandon_victim
 
 
-
+# def share_victims(my_victims: List, other_victims: List):
+#     """
+#     By Louis
+#     Returns
+#     -------
+#     """
+#
+#     for tile_x, tile_y, savior in my_victims:
+#         for other_tile_x, other_tile_y, other_savior in other_victims:
+#             # If the distance between the two victims is less than VICTIM_MIN_DIST, we consider them as the same victim
+#             if np.sqrt((tile_x - other_tile_x) ** 2 + (tile_y - other_tile_y) ** 2) < VICTIM_MIN_DIST:
+#                 # We keep the savior with the highest id
+#                 # TODO : check if using a trust factor is relevant
+#                 if savior > other_savior:
+#                     other_victims.remove((other_tile_x, other_tile_y, other_savior))
+#                 else:
+#                     my_victims.remove((tile_x, tile_y, savior))
+#
+#     return my_victims + other_victims
