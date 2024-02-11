@@ -4,6 +4,7 @@ from solutions.assets.communication.comm_declarations import MsgType
 from typing import List, Tuple
 
 from swarm_rescue.solutions.assets.communication.share import intersect_waypoints, intersect_bases, intersect_occupancy, intersect_entity, intersect_victims
+from swarm_rescue.solutions.assets.mapping.semanticMapping import MAX_BASES_SIZE
 
 # region local constants
 MAX_MESSAGE_MEMORY = 20
@@ -29,7 +30,8 @@ def create_msg(msg_type: MsgType, destination, msg_data, drone_id: int, msg_id: 
     return {'sender': drone_id, 'msg_id': msg_id[0]-1, 'dest': destination, 'type': msg_type, 'data': msg_data, 'transmit': transmit}
 
 
-def compute_received_com(received_messages, to_send, alive_received, processed_msg, abandon_victim, id, waypoints, bases, occupancy_map, entity_map, victims):
+def compute_received_com(received_messages, to_send, alive_received, processed_msg, abandon_victim, id, waypoints, bases, occupancy_map, entity_map, tile_map_size, victims,
+                         in_noGPSzone: bool):
     """
     Compute the messages to send and the messages to proceed
     Args:
@@ -68,13 +70,13 @@ def compute_received_com(received_messages, to_send, alive_received, processed_m
                     to_send.append(msg_content)
 
             if dest_id == 'all' or dest_id == id:
-                process_message(msg_type, msg_content['data'], alive_received, abandon_victim, id, waypoints, bases, occupancy_map, entity_map, victims)
+                process_message(msg_type, msg_content['data'], alive_received, abandon_victim, id, waypoints, bases, occupancy_map, entity_map, tile_map_size, victims, in_noGPSzone)
                 processed_msg[sender_id] = processed_msg[sender_id][-MAX_MESSAGE_MEMORY:] + [msg_content['msg_id']]
 
     return to_send
 
 
-def process_message(msg_type, data, alive_received, abandon_victim, id, waypoints, bases, occupancy_map, entity_map, victims):
+def process_message(msg_type, data, alive_received, abandon_victim, id, waypoints, bases, occupancy_map, entity_map, tile_map_size, victims, in_noGPSzone):
     """
     Process the message
     Args:
@@ -93,13 +95,16 @@ def process_message(msg_type, data, alive_received, abandon_victim, id, waypoint
             intersect_waypoints(waypoints, data)
 
         case MsgType.SHARE_BASES.value:
-            intersect_bases(bases, data)
+            if len(bases) < MAX_BASES_SIZE:
+                intersect_bases(bases, data)
 
         case MsgType.SHARE_OCCUPANCY_MAP.value:
-            intersect_occupancy(occupancy_map, data)
+            if not in_noGPSzone:
+                intersect_occupancy(occupancy_map, data)
 
         case MsgType.SHARE_ENTITY_MAP.value:
-            intersect_entity(entity_map, data)
+            if not in_noGPSzone:
+                intersect_entity(entity_map, data, tile_map_size)
 
         case MsgType.SHARE_VICTIMS.value:
             if not victims:

@@ -1,12 +1,10 @@
-import math
-import random
-from typing import Optional
 import math as m
-import numpy as np
-import arcade  # for drawing
-import time
+import os
+import sys
+from typing import Optional
 
-import os, sys
+import arcade  # for drawing
+import numpy as np
 
 from swarm_rescue.solutions.assets.communication.comm_declarations import MsgType
 from swarm_rescue.solutions.assets.communication.comm_manager import compute_received_com, create_msg
@@ -16,27 +14,25 @@ from swarm_rescue.solutions.assets.mapping.entity import Entity, add_entity
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from swarm_rescue.spg_overlay.entities.drone_abstract import DroneAbstract
 from swarm_rescue.spg_overlay.utils.misc_data import MiscData
-from swarm_rescue.maps.map_intermediate_01 import MyMapIntermediate01
-from swarm_rescue.spg_overlay.gui_map.gui_sr import GuiSR
 from swarm_rescue.solutions.assets.movement.pathfinding import find_path, compute_path_map
 from swarm_rescue.solutions.assets.movement.control import compute_command
 from swarm_rescue.solutions.assets.mapping.lidarMapping import process_lidar
 from swarm_rescue.solutions.assets.mapping.semanticMapping import process_semantic
 from swarm_rescue.solutions.assets.mapping.mapping_constants import TILE_SIZE
-from swarm_rescue.solutions.assets.mapping.draw_grid import draw_map
 from swarm_rescue.solutions.assets.behavior.state import State
-from swarm_rescue.solutions.assets.behavior.map_split import zone_split, waypoint_pos, ZONE_SIZE
-from swarm_rescue.solutions.assets.movement.pathfinding import BASE_WEIGHT, CLOUD_BONUS, WALL_WEIGHT
+from swarm_rescue.solutions.assets.behavior.map_split import zone_split, waypoint_pos
+from swarm_rescue.solutions.assets.movement.pathfinding import BASIC_WEIGHT, WALL_WEIGHT
 from swarm_rescue.solutions.assets.behavior.think import compute_behavior, is_defined, undefined_index, undefined_target
 
-
 # region local constants
-SHARE_WAYPOINTS_WAIT = 400
-SHARE_BASES_WAIT = 1000
-SHARE_OCCUPANCY_WAIT = 100
-SHARE_ENTITY_WAIT = 20
-SHARE_VICTIMS_WAIT = 15
+SHARE_WAYPOINTS_WAIT = 64
+SHARE_BASES_WAIT = 256  # must be high
+SHARE_OCCUPANCY_WAIT = 32
+SHARE_ENTITY_WAIT = 16
+SHARE_VICTIMS_WAIT = 8
 CONFIDENCE_RADIUS = 1
+
+
 # endregion
 
 class MyFirstDrone(DroneAbstract):
@@ -51,11 +47,11 @@ class MyFirstDrone(DroneAbstract):
         self.id = identifier
         # endregion
         # region pathfinding init
-        self.pos = np.zeros(3, dtype=np.float16)
+        self.pos = np.zeros(3, dtype=np.float64)
         """
         The position vector of the drone, third term being its angle.
         """
-        self.speed = np.zeros(3, dtype=np.float16)
+        self.speed = np.zeros(3, dtype=np.float32)
         """
         The speed vector of the drone, third term being its angle.
         """
@@ -67,7 +63,7 @@ class MyFirstDrone(DroneAbstract):
         """
         The map size, in pixels.
         """
-        self.tile_map_size = tuple([np.int32(size / TILE_SIZE) for size in self.map_size])
+        self.tile_map_size = tuple([np.int64(size / TILE_SIZE) for size in self.map_size])
         """
         The map size, in tiles.
         
@@ -92,10 +88,10 @@ class MyFirstDrone(DroneAbstract):
         
         :type: ndarray of uint8
         """
-        self.trust_map = np.zeros(self.tile_map_size, dtype=np.uint8)
-        """
-        WIP
-        """
+        # self.trust_map = np.zeros(self.tile_map_size, dtype=np.uint32)
+        # """
+        # WIP
+        # """
         self.path = list()
         """
         The current path that the drone is following.
@@ -118,6 +114,7 @@ class MyFirstDrone(DroneAbstract):
 
         :type: list of 2-elements lists
         """
+        self.detected_drones = list()
         # endregion
         # region behavior init
         self.state = State.BOOT.value
@@ -165,7 +162,12 @@ class MyFirstDrone(DroneAbstract):
         """
         self.comm_timers = {"share_waypoints": 0, "share_bases": SHARE_BASES_WAIT // 2, "share_occupancy": 0, "share_entity": 0, "share_victims": 0}
         # we add a small difference in the transmission timers so that every drone does not share its map at the same time, allowing their info to spread
-        self.comm_timers.update((key, value + self.id) for key, value in self.comm_timers.items())
+        self.comm_timers["share_waypoints"] = (self.comm_timers["share_waypoints"] + self.id) % SHARE_WAYPOINTS_WAIT
+        self.comm_timers["share_bases"] = (self.comm_timers["share_bases"] + self.id) % SHARE_BASES_WAIT
+        self.comm_timers["share_occupancy"] = (self.comm_timers["share_occupancy"] + self.id) % SHARE_OCCUPANCY_WAIT
+        self.comm_timers["share_entity"] = (self.comm_timers["share_entity"] + self.id) % SHARE_ENTITY_WAIT
+        self.comm_timers["share_victims"] = (self.comm_timers["share_victims"] + self.id) % SHARE_VICTIMS_WAIT
+        # self.comm_timers.update((key, value + self.id) for key, value in self.comm_timers.items())
         self.abandon_victim = np.zeros(1, dtype=bool)
         """
         Is true if other drones told him to fuck off, they are already rescuing his victim
@@ -202,7 +204,7 @@ class MyFirstDrone(DroneAbstract):
 
     @property
     def tile_pos(self):
-        return (self.pos[0] / TILE_SIZE + 0.5).astype(int), (self.pos[1] / TILE_SIZE + 0.5).astype(int), self.pos[2]
+        return (self.pos[0] / TILE_SIZE + 0.5).astype(np.uint32), (self.pos[1] / TILE_SIZE + 0.5).astype(np.uint32), self.pos[2]
 
     def update_position(self):
         if self.odometer_values() is not None:
@@ -226,13 +228,14 @@ class MyFirstDrone(DroneAbstract):
     def define_message_for_all(self):
 
         if self.state == State.DONE.value:
+            # avoids unnecessary computation, and allows other drones to finish their exploration (double check on last areas is always good to take)
             return []
 
         self.to_send = []
         self.alive_received = []
-        self.comm_timers["share_waypoints"] += 1
-        self.comm_timers["share_bases"] += 1
-        if not self.in_noGPSzone:
+        if len(self.communicator.received_messages) != 0 and not self.in_noGPSzone:
+            self.comm_timers["share_waypoints"] += 1
+            self.comm_timers["share_bases"] += 1
             self.comm_timers["share_occupancy"] += 1
             self.comm_timers["share_entity"] += 1
             if len(self.victims) != 0:
@@ -256,7 +259,7 @@ class MyFirstDrone(DroneAbstract):
             self.comm_timers["share_entity"] = 0
 
         compute_received_com(self.communicator.received_messages, self.to_send, self.alive_received, self.processed_msg, self.abandon_victim, self.id, self.waypoints, self.bases,
-                             self.occupancy_map, self.entity_map, self.victims)
+                             self.occupancy_map, self.entity_map, self.tile_map_size, self.victims, self.in_noGPSzone)
 
         return self.to_send
 
@@ -277,11 +280,11 @@ class MyFirstDrone(DroneAbstract):
                 add_entity(self.tile_pos[0], self.tile_pos[1], Entity.NOCOM.value, self.entity_map, self.tile_map_size, CONFIDENCE_RADIUS)
 
         self.occupancy_map = process_lidar(self.occupancy_map, self.map_size, TILE_SIZE, self.tile_map_size, self.lidar_values(), self.lidar_rays_angles(),
-                                           self.pos, self.pos[2])
+                                           self.pos[:2], self.pos[2])
         (self.distance_from_closest_victim, self.victim_angle, self.distance_from_closest_base,
          self.distance_from_closest_drone) = process_semantic(self.semantic_values(), self.pos, self.tile_map_size, self.victims, self.state, self.bases, self.entity_map,
-                                                              self.path_map, self.occupancy_map, self.victim_angle)
-        self.path_map = compute_path_map(self.tile_map_size, self.occupancy_map, self.entity_map, self.state, self.target)
+                                                              self.map_size, self.occupancy_map, self.victim_angle, self.detected_drones)
+        self.path_map = compute_path_map(self.tile_map_size, self.occupancy_map, self.entity_map, self.state, self.target, tuple(self.detected_drones))
 
         self.state, self.target = compute_behavior(self.id, self.target, self.target_indication, self.tile_pos, self.path, self.speed, self.state, self.victims,
                                                    self.distance_from_closest_victim, self.bases, self.distance_from_closest_base, self.got_victim, self.waypoints,
@@ -308,8 +311,7 @@ class MyFirstDrone(DroneAbstract):
         command = compute_command(self.path, self.path_map, self.tile_pos, self.state, self.victim_angle, self.distance_from_closest_base)
         return command
 
-
-    def draw_bottom_layer(self):  # (to comment out for eval)
+    def draw_top_layer(self):  # (to comment out for eval)
 
         x, y = self.true_position()
         x = x + self.map_size[0] / 2
@@ -322,7 +324,7 @@ class MyFirstDrone(DroneAbstract):
         safe_color = (118, 183, 170)
         cloud_color = (220, 220, 220)
         path_color = (45, 140, 251)
-        back_color = (0, 148, 66)
+        drone_color = (0, 148, 66)
         waypoint_color = (0, 208, 61)
         waypoint_color_2 = (0, 108, 61)
         kill_color = (255, 0, 0)
@@ -349,17 +351,19 @@ class MyFirstDrone(DroneAbstract):
                             color = nogps_color
                         case Entity.SAFE.value:
                             color = safe_color
+                    if (i, j) in self.detected_drones:
+                        color = drone_color
                     arcade.draw_rectangle_filled(i * TILE_SIZE + TILE_SIZE / 2, j * TILE_SIZE + TILE_SIZE / 2, TILE_SIZE, TILE_SIZE, color)
 
         if self.draw_path_map:  # displays the path_map
 
             for i in range(0, self.tile_map_size[0]):
                 for j in range(0, self.tile_map_size[1]):
-                    if self.path_map[i, j] != BASE_WEIGHT:
+                    if self.path_map[i, j] != BASIC_WEIGHT:
                         if self.path_map[i, j] == 0:
                             color = wall_color
                         else:
-                            t = 1 - (self.path_map[i, j] - BASE_WEIGHT) / WALL_WEIGHT
+                            t = 1 - (self.path_map[i, j] - BASIC_WEIGHT) / WALL_WEIGHT
                             color = (1 - t) * np.array(gradation_color) + t * np.array(void_color)  # gradation
                         arcade.draw_rectangle_filled(i * TILE_SIZE + TILE_SIZE / 2, j * TILE_SIZE + TILE_SIZE / 2, TILE_SIZE, TILE_SIZE, color)
             # draw_map(self.occupancy_map, TILE_SIZE, self.map_size, self.pos[:2], self.pos[2])
@@ -388,4 +392,3 @@ class MyFirstDrone(DroneAbstract):
 
         if self.draw_id:
             arcade.draw_text(str(self.id), x + 15, y - 15, arcade.color.BLACK, 15)  # draw id
-

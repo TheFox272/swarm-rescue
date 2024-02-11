@@ -5,7 +5,7 @@ import numba as nb
 import numpy as np
 
 from swarm_rescue.solutions.assets.mapping.mapping_constants import TILE_SIZE
-from swarm_rescue.solutions.assets.movement.pathfinding import BASE_WEIGHT, CLOUD_BONUS
+from swarm_rescue.solutions.assets.movement.pathfinding import BASIC_WEIGHT, CLOUD_BONUS
 from swarm_rescue.solutions.assets.behavior.state import State
 from swarm_rescue.solutions.assets.behavior.think import DROP_DISTANCE, GRAB_DISTANCE
 
@@ -108,7 +108,7 @@ def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos:
         foresee = min(FORESEE, len(path))
 
         # less anticipation if the path is risky
-        foresee -= min(max(0, int(sum([path_map[tuple(path_tile)] for path_tile in path[:foresee]]) / BASE_WEIGHT) - foresee), foresee-1)
+        foresee -= min(max(0, int(sum([path_map[tuple(path_tile)] for path_tile in path[:foresee]]) / BASIC_WEIGHT) - foresee), foresee - 1)
 
         # computes target point that the drone needs to follow in order to follow the path
         dx = first_weighted_avg([path_tile[0] - tile_pos[0] for path_tile in path[:foresee]], foresee)

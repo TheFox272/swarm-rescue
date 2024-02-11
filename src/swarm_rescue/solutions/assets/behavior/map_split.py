@@ -78,7 +78,7 @@ def zone_split(tile_map_size, base_pos, nb_teams, n_team):
                 angle_waypoint = m.atan((pos[1] - base_pos[1]) / (pos[0] - base_pos[0]))
             else:
                 angle_waypoint = 0
-            if min_angle + (n_team - 1) / nb_teams * (max_angle - min_angle) <= angle_waypoint <= min_angle + n_team / nb_teams * (max_angle - min_angle):
+            if min_angle + n_team / nb_teams * (max_angle - min_angle) <= angle_waypoint <= min_angle + (n_team + 1) / nb_teams * (max_angle - min_angle):
                 waypoints[i, j] = 2
 
     return waypoints, n_width, n_height

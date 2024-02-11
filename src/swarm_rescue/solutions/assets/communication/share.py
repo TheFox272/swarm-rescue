@@ -5,6 +5,7 @@ import numba as nb
 from solutions.assets.communication.comm_declarations import MsgType
 
 from swarm_rescue.solutions.assets.behavior.think import VICTIM_RESCUED_NB
+from swarm_rescue.solutions.assets.mapping.entity import max_entity
 from swarm_rescue.solutions.assets.mapping.semanticMapping import VICTIM_DETECTION_MARGIN
 
 # region local constants
@@ -33,8 +34,11 @@ def intersect_occupancy(occupancy: np.ndarray, other_occupancy: np.ndarray):
     np.add(np.multiply(occupancy, OWN_OCCUPANCY_WEIGHT), np.multiply(other_occupancy, 1 - OWN_OCCUPANCY_WEIGHT), out=occupancy)
 
 
-def intersect_entity(entity: np.ndarray, other_entity: np.ndarray):
-    np.maximum(entity, other_entity, out=entity)
+@nb.njit
+def intersect_entity(entity_map: np.ndarray, other_entity_map: np.ndarray, tile_map_size):
+    for i in np.arange(tile_map_size[0]):
+        for j in np.arange(tile_map_size[1]):
+            entity_map[i, j] = max_entity(entity_map[i, j], other_entity_map[i, j])
 
 
 def intersect_victims(victims: List, other_victims: List, drone_id: np.uint8):
@@ -60,7 +64,7 @@ def intersect_victims(victims: List, other_victims: List, drone_id: np.uint8):
                 victims_array[i, 2] = VICTIM_RESCUED_NB
                 if savior == drone_id:
                     abandon_victim = True
-                    print(f"{drone_id} was told there is no victim here anymore")
+                    # print(f"{drone_id} was told there is no victim here anymore")
 
     victims[:] = victims_array.tolist()
 
@@ -69,23 +73,3 @@ def intersect_victims(victims: List, other_victims: List, drone_id: np.uint8):
 
     return abandon_victim
 
-
-# def share_victims(my_victims: List, other_victims: List):
-#     """
-#     By Louis
-#     Returns
-#     -------
-#     """
-#
-#     for tile_x, tile_y, savior in my_victims:
-#         for other_tile_x, other_tile_y, other_savior in other_victims:
-#             # If the distance between the two victims is less than VICTIM_MIN_DIST, we consider them as the same victim
-#             if np.sqrt((tile_x - other_tile_x) ** 2 + (tile_y - other_tile_y) ** 2) < VICTIM_MIN_DIST:
-#                 # We keep the savior with the highest id
-#                 # TODO : check if using a trust factor is relevant
-#                 if savior > other_savior:
-#                     other_victims.remove((other_tile_x, other_tile_y, other_savior))
-#                 else:
-#                     my_victims.remove((tile_x, tile_y, savior))
-#
-#     return my_victims + other_victims

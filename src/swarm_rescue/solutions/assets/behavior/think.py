@@ -3,9 +3,8 @@ import numba as nb
 import math as m
 import tcod.path
 
-from swarm_rescue.solutions.assets.mapping.mapping_constants import TILE_SIZE, VICTIM_RADIUS
 from swarm_rescue.solutions.assets.mapping.entity import Entity
-from swarm_rescue.solutions.assets.movement.pathfinding import anticipate_pos
+from swarm_rescue.solutions.assets.movement.pathfinding import anticipate_pos, bounded_variation, find_path
 from swarm_rescue.solutions.assets.behavior.map_split import ZONE_SIZE, waypoint_pos
 from swarm_rescue.solutions.assets.behavior.state import State
 
@@ -13,7 +12,7 @@ from swarm_rescue.solutions.assets.behavior.state import State
 GRAB_DISTANCE = 28
 DROP_DISTANCE = 60
 EXPLORED_PATH_DISTANCE = 2
-ZONE_COMPLETION = 85
+ZONE_COMPLETION = 92
 VICTIM_RESCUED_NB = -2
 VICTIM_WAITING_NB = -1
 
@@ -22,8 +21,9 @@ BASE_SCAN = 16
 BELIEVE_WAIT = 2
 VICTIM_WAIT = 4
 
-
+EXPLORED_WP_VALUE = 0
 # endregion
+
 
 # @nb.njit
 def next_waypoint(tile_pos, drone_speed, waypoints, n_width, n_height, tile_map_size, path_map):
@@ -78,32 +78,39 @@ def next_victim(tile_pos, drone_speed, victims, tile_map_size):
     return best_victim_index
 
 
-def next_base(tile_pos, drone_speed, bases, tile_map_size):
-
+def next_base(tile_pos, drone_speed, bases, tile_map_size, path_map, distance_from_closest_base):
     if len(bases) == 0:
         return None
 
-    drone_pos = anticipate_pos(tile_pos, drone_speed, tile_map_size)
-    nodes = np.asarray(bases)
-    dist_2 = np.sum((nodes - drone_pos) ** 2, axis=1)
+    # for base in bases:
+    #     path_map[base] = 1
+    # graph = tcod.path.SimpleGraph(cost=path_map, cardinal=5, diagonal=7)
+    # pf = tcod.path.Pathfinder(graph)
+    # pf.add_root(anticipate_pos(tile_pos, drone_speed, tile_map_size))
 
-    return nodes[np.argmin(dist_2)]
+    best_distance = m.inf
+    best_base = None
 
+    valid_bases = []
+    for base in bases:
+        distance = len(find_path(tile_map_size, path_map, tile_pos, base, drone_speed))
+        if distance == 1 and m.isinf(distance_from_closest_base):  # means that base is isolated by walls somehow
+            continue
+        elif distance < best_distance:
+            best_distance = distance
+            best_base = base
+        valid_bases.append(base)
 
-@nb.njit
-def bounded_variation(x, variation, x_sup, x_inf=0):
-    """
-    returns a range a values around x so that it stays bounded by x_sup and x_inf
-    """
-    return np.arange(max(int(x - variation), x_inf), min(int(x + variation), x_sup))
+    bases[:] = valid_bases
+    return best_base
 
 
 @nb.njit
 def waypoints_scan(n_width, n_height, waypoints, tile_map_size, entity_map):
     for i in np.arange(n_width):
         for j in np.arange(n_height):
-            if waypoints[i, j] != 0 and partially_explored(waypoint_pos(i, j), tile_map_size, entity_map):
-                waypoints[i, j] = 0
+            if waypoints[i, j] != EXPLORED_WP_VALUE and partially_explored(waypoint_pos(i, j), tile_map_size, entity_map):
+                waypoints[i, j] = EXPLORED_WP_VALUE
 
 
 @nb.njit
@@ -113,8 +120,8 @@ def partially_explored(tile_pos, tile_map_size, entity_map):
     """
     zone_area = ZONE_SIZE * ZONE_SIZE / 2
     zone_knowledge = zone_area
-    for i in bounded_variation(tile_pos[0], ZONE_SIZE / 2, tile_map_size[0] - 1):
-        for j in bounded_variation(tile_pos[1], ZONE_SIZE / 2 - tile_pos[0] + i, tile_map_size[1] - 1):
+    for i in bounded_variation(tile_pos[0], ZONE_SIZE / 2, tile_map_size[0]):
+        for j in bounded_variation(tile_pos[1], ZONE_SIZE / 2 - tile_pos[0] + i, tile_map_size[1]):
             if entity_map[i, j] == Entity.BASE.value:
                 zone_knowledge += 5
             elif entity_map[i, j] == Entity.WALL.value:
@@ -127,7 +134,7 @@ def partially_explored(tile_pos, tile_map_size, entity_map):
 
 
 def is_explored(waypoints, target_waypoint, path, tile_map_size, entity_map):
-    if waypoints[target_waypoint] == 0 or len(path) <= EXPLORED_PATH_DISTANCE:
+    if waypoints[target_waypoint[0], target_waypoint[1]] == EXPLORED_WP_VALUE or len(path) <= EXPLORED_PATH_DISTANCE:
         return True
     else:
         return partially_explored(waypoint_pos(target_waypoint[0], target_waypoint[1]), tile_map_size, entity_map)
@@ -146,13 +153,12 @@ undefined_index = -1
 
 def compute_behavior(id, target, target_indication, tile_pos, path, speed, state, victims, distance_from_closest_victim, bases, distance_from_closest_base,
                      got_victim, waypoints, n_width, n_height, tile_map_size, entity_map, path_map, timers, distance_from_closest_drone, abandon_victim):
-
     if timers["waypoints_scan"] == WAYPOINTS_SCAN:
         timers["waypoints_scan"] = 0
         waypoints_scan(n_width, n_height, waypoints, tile_map_size, entity_map)
     else:
         timers["waypoints_scan"] += 1
-    
+
     if state == State.BOOT.value:
         # TODO boot
         return State.EXPLORE.value, undefined_target
@@ -162,7 +168,7 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
 
     elif state == State.EXPLORE.value:
         best_victim_index = next_victim(tile_pos, speed, victims, tile_map_size)
-        if best_victim_index is not None:
+        if best_victim_index is not None and len(bases) != 0:
             timers["waypoints_scan"] = 0  # resets the timer for next time it explores
             target_indication["waypoint"] = undefined_target
             victims[best_victim_index][2] = id
@@ -171,7 +177,7 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
         else:
             if is_defined(target_indication["waypoint"]):
                 if is_explored(waypoints, target_indication["waypoint"], path, tile_map_size, entity_map):
-                    waypoints[target_indication["waypoint"]] = 0
+                    waypoints[target_indication["waypoint"]] = EXPLORED_WP_VALUE
                     target_indication["waypoint"] = undefined_target
                     return State.EXPLORE.value, undefined_target
                 else:
@@ -189,7 +195,7 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
         if abandon_victim[0]:
             abandon_victim[0] = False
             target_indication["victim"] = undefined_index
-            print(f"{id}: leaving my target")
+            # print(f"{id}: leaving my target")
             return State.EXPLORE.value, undefined_target
 
         # actualise victim position
@@ -222,7 +228,7 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
         if abandon_victim[0]:  # if told to let the victim while he was about to catch it, catch is nonetheless
             abandon_victim[0] = False
             victims[target_indication["victim"]][2] = id
-            print(f"{id}: I do not care, I'll catch it")
+            # print(f"{id}: I do not care, I'll catch it")
 
         if not target_indication["base"] and got_victim:
             target_indication["base"] = True
@@ -234,9 +240,10 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
                 target_indication["victim"] = undefined_index
                 victims[best_victim_index][2] = VICTIM_RESCUED_NB
 
-            target_base = next_base(tile_pos, speed, bases, tile_map_size)
+            target_base = next_base(tile_pos, speed, bases, tile_map_size, path_map, distance_from_closest_base)
             if target_base is None:
-                return State.SAVE.value, tuple(bases[0])  # TODO : change that
+                target_indication["victim"] = undefined_index
+                return State.EXPLORE.value, undefined_target  # TODO : change that
             else:
                 return State.SAVE.value, tuple(target_base)
 
@@ -244,7 +251,6 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
             if timers["victim_wait"] >= VICTIM_WAIT:
                 victims[target_indication["victim"]][2] = VICTIM_RESCUED_NB
                 target_indication["victim"] = undefined_index
-
                 return State.EXPLORE.value, undefined_target
             else:
                 timers["victim_wait"] += 1
@@ -262,4 +268,3 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
                 timers["base_scan"] += 1
 
             return State.SAVE.value, target
-

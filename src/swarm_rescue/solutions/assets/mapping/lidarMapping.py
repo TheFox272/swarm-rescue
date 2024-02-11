@@ -5,6 +5,16 @@ import swarm_rescue.solutions.assets.mapping.gridFunctions as gridFun
 
 from swarm_rescue.spg_overlay.utils.constants import MAX_RANGE_LIDAR_SENSOR
 
+# region local constants
+EVERY_N = 3
+LIDAR_DIST_CLIP = 40.0
+EMPTY_ZONE_VALUE = -0.602
+OBSTACLE_ZONE_VALUE = 2.0
+FREE_ZONE_VALUE = -4.0
+THRESHOLD_MIN = -40
+THRESHOLD_MAX = 40
+# endregion
+
 
 def process_lidar(occupancy_map, size_area_world, resolution, tile_map_size, lidar_values, lidar_ray_angles, pos, ori):
     """
@@ -17,14 +27,6 @@ def process_lidar(occupancy_map, size_area_world, resolution, tile_map_size, lid
     pos : gps position of the drone
     ori : compas angle of the drone
     """
-
-    EVERY_N = 3
-    LIDAR_DIST_CLIP = 40.0
-    EMPTY_ZONE_VALUE = -0.602
-    OBSTACLE_ZONE_VALUE = 2.0
-    FREE_ZONE_VALUE = -4.0
-    THRESHOLD_MIN = -40
-    THRESHOLD_MAX = 40
 
     if lidar_values is not None:  # prevents crash when dead
         lidar_dist = lidar_values[::EVERY_N].copy()
