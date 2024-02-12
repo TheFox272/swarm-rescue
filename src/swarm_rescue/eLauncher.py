@@ -21,7 +21,7 @@ class MyDrone(MyFirstDrone):
 
 
 # Map selection
-class MyMap(MyMapMedium02):
+class MyMap(MyMapIntermediate01):
     pass
 
 

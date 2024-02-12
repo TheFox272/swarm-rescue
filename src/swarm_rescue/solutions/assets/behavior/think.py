@@ -3,8 +3,8 @@ import numba as nb
 import math as m
 import tcod.path
 
-from swarm_rescue.solutions.assets.mapping.entity import Entity
-from swarm_rescue.solutions.assets.movement.pathfinding import anticipate_pos, bounded_variation, find_path
+from swarm_rescue.solutions.assets.mapping.entity import Entity, bounded_variation
+from swarm_rescue.solutions.assets.movement.pathfinding import anticipate_pos, find_path
 from swarm_rescue.solutions.assets.behavior.map_split import ZONE_SIZE, waypoint_pos
 from swarm_rescue.solutions.assets.behavior.state import State
 
@@ -12,7 +12,7 @@ from swarm_rescue.solutions.assets.behavior.state import State
 GRAB_DISTANCE = 28
 DROP_DISTANCE = 60
 EXPLORED_PATH_DISTANCE = 2
-ZONE_COMPLETION = 92
+ZONE_COMPLETION = 90
 VICTIM_RESCUED_NB = -2
 VICTIM_WAITING_NB = -1
 
@@ -34,7 +34,7 @@ def next_waypoint(tile_pos, drone_speed, waypoints, n_width, n_height, tile_map_
     else:
         return None
 
-    graph = tcod.path.SimpleGraph(cost=path_map, cardinal=5, diagonal=7)
+    graph = tcod.path.SimpleGraph(cost=path_map, cardinal=1, diagonal=0)
     pf = tcod.path.Pathfinder(graph)
     pf.add_root(anticipate_pos(tile_pos, drone_speed, tile_map_size))
     best_waypoint = None
@@ -153,17 +153,14 @@ undefined_index = -1
 
 def compute_behavior(id, target, target_indication, tile_pos, path, speed, state, victims, distance_from_closest_victim, bases, distance_from_closest_base,
                      got_victim, waypoints, n_width, n_height, tile_map_size, entity_map, path_map, timers, distance_from_closest_drone, abandon_victim):
+
     if timers["waypoints_scan"] == WAYPOINTS_SCAN:
         timers["waypoints_scan"] = 0
         waypoints_scan(n_width, n_height, waypoints, tile_map_size, entity_map)
     else:
         timers["waypoints_scan"] += 1
 
-    if state == State.BOOT.value:
-        # TODO boot
-        return State.EXPLORE.value, undefined_target
-
-    elif state == State.DONE.value:
+    if state == State.DONE.value:
         return state, target
 
     elif state == State.EXPLORE.value:

@@ -10,7 +10,7 @@ from swarm_rescue.solutions.assets.behavior.state import State
 from swarm_rescue.solutions.assets.behavior.think import DROP_DISTANCE, GRAB_DISTANCE
 
 # region local constants
-FORESEE = 7
+FORESEE = 10
 """
 Constant corresponding to the maximum number of points from the :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path` that the drone will take into 
 consideration in :py:func:`compute_command`
@@ -38,6 +38,12 @@ Constant used in :py:func:`compute_command` to compute the rotational thrust com
 
 :type: float
 :domain: [0, 1]
+"""
+SWAP_ROT_PATH_LEN = 15
+"""
+
+:type: uint
+:domain: [1, inf]
 """
 # endregion
 
@@ -75,8 +81,8 @@ def first_weighted_avg(nList: List[float], n: np.uint) -> float:
     return res
 
 
-def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos: np.ndarray, state: State, victim_angle: float,
-                    distance_from_closest_base) -> dict[str, float]:
+def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos: np.ndarray, state: State, victim_angle: np.ndarray, distance_from_closest_base)\
+        -> dict[str, float]:
     """Computes the command of the drone
 
     Uses path to determine the next point that the drone needs to reach, using the :py:function:first_weighted_avg function to anticipate the trajectory. Uses the
@@ -108,7 +114,7 @@ def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos:
         foresee = min(FORESEE, len(path))
 
         # less anticipation if the path is risky
-        foresee -= min(max(0, int(sum([path_map[tuple(path_tile)] for path_tile in path[:foresee]]) / BASIC_WEIGHT) - foresee), foresee - 1)
+        foresee -= min(max(0, int(sum([m.sqrt(path_map[tuple(path_tile)]) for path_tile in path[:foresee]]) / BASIC_WEIGHT) - foresee), foresee - 1)
 
         # computes target point that the drone needs to follow in order to follow the path
         dx = first_weighted_avg([path_tile[0] - tile_pos[0] for path_tile in path[:foresee]], foresee)
@@ -118,7 +124,11 @@ def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos:
 
         forward_diff = dx * m.cos(tile_pos[2]) + dy * m.sin(tile_pos[2])
         lateral_diff = -dx * m.sin(tile_pos[2]) + dy * m.cos(tile_pos[2])
-        rot_diff = signed_angle(path_angle - tile_pos[2] - victim_angle)
+        if len(path) < SWAP_ROT_PATH_LEN:
+            grasp_angle = 0
+        else:
+            grasp_angle = m.pi
+        rot_diff = signed_angle(path_angle - tile_pos[2] - victim_angle - grasp_angle)
 
         command["forward"] = min(max(-1, forward_diff * K_FOR), 1)
         command["lateral"] = min(max(-1, lateral_diff * K_LAT), 1)
