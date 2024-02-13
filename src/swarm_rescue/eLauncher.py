@@ -21,13 +21,13 @@ class MyDrone(MyFirstDrone):
 
 
 # Map selection
-class MyMap(MyMapIntermediate01):
+class MyMap(MyMapFinal):
     pass
 
 
 def main():
     my_map = MyMap(zones_config=[ZoneType.KILL_ZONE, ZoneType.NO_GPS_ZONE, ZoneType.NO_COM_ZONE])
-    my_map._real_time_limit = 100000000
+    my_map._real_time_limit = 1000000000
 
     # my_map._number_drones = 2
     playground = my_map.construct_playground(drone_type=MyDrone)

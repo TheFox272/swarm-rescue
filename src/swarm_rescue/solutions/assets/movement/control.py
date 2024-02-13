@@ -81,6 +81,9 @@ def first_weighted_avg(nList: List[float], n: np.uint) -> float:
     return res
 
 
+f_slow = nb.njit(lambda weight: 1.8 - 1.8 / (weight + 1))
+
+
 def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos: np.ndarray, state: State, victim_angle: np.ndarray, distance_from_closest_base)\
         -> dict[str, float]:
     """Computes the command of the drone
@@ -114,7 +117,7 @@ def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos:
         foresee = min(FORESEE, len(path))
 
         # less anticipation if the path is risky
-        foresee -= min(max(0, int(sum([m.sqrt(path_map[tuple(path_tile)]) for path_tile in path[:foresee]]) / BASIC_WEIGHT) - foresee), foresee - 1)
+        foresee -= min(max(0, int(round(sum([f_slow(path_map[path_tile[0], path_tile[1]] / BASIC_WEIGHT) for path_tile in path[:foresee]]), 0)) - foresee), foresee - 1)
 
         # computes target point that the drone needs to follow in order to follow the path
         dx = first_weighted_avg([path_tile[0] - tile_pos[0] for path_tile in path[:foresee]], foresee)

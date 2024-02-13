@@ -24,7 +24,7 @@ from swarm_rescue.solutions.assets.mapping.mapping_constants import TILE_SIZE
 from swarm_rescue.solutions.assets.behavior.state import State
 from swarm_rescue.solutions.assets.behavior.map_split import zone_split, waypoint_pos
 from swarm_rescue.solutions.assets.movement.pathfinding import BASIC_WEIGHT, WALL_WEIGHT
-from swarm_rescue.solutions.assets.behavior.think import compute_behavior, is_defined, undefined_index, undefined_target
+from swarm_rescue.solutions.assets.behavior.think import compute_behavior, is_defined, undefined_index, undefined_target, undefined_waypoint, target_is_defined
 
 # region local constants
 SHARE_WAYPOINTS_WAIT = 16
@@ -32,10 +32,10 @@ SHARE_BASES_WAIT = 64  # must be high
 SHARE_OCCUPANCY_WAIT = 8
 SHARE_ENTITY_WAIT = 4
 SHARE_VICTIMS_WAIT = 4
-CONFIDENCE_RADIUS = 2
-SAFE_CONFIDENCE_RADIUS = 1
+CONFIDENCE_RADIUS = 3
+SAFE_CONFIDENCE_RADIUS = 2
 
-NO_SAFE_ON_BASE_DISTANCE = TILE_SIZE * 3
+NO_SAFE_ON_BASE_DISTANCE = TILE_SIZE
 
 noGPS_time_limit = 30
 
@@ -62,7 +62,7 @@ class MyFirstDrone(DroneAbstract):
         """
         The speed vector of the drone, third term being its angle.
         """
-        self.target = (0, 0)
+        self.target = undefined_target.copy()
         """
         The current drone's target, where is wants to move.
         """
@@ -125,7 +125,7 @@ class MyFirstDrone(DroneAbstract):
         self.silent_drones = dict()
         # endregion
         # region behavior init
-        self.state = State.EXPLORE.value
+        self.state = State.BOOT.value
         # if self.id not in [1, 2]:
         #     self.state = State.DONE.value
         """
@@ -135,7 +135,7 @@ class MyFirstDrone(DroneAbstract):
         """
         self.nb_drones = misc_data.number_drones
         self.waypoints, self.n_width, self.n_height = zone_split(self.tile_map_size, self.tile_pos, self.nb_drones, self.drone_id)  # WIP
-        self.target_indication = {"victim": undefined_index, "waypoint": undefined_target, "base": False}
+        self.target_indication = {"victim": undefined_index, "waypoint": undefined_waypoint, "base": False}
         self.victims = list()
         self.distance_from_closest_victim = m.inf
         self.distance_from_closest_base = m.inf
@@ -202,6 +202,10 @@ class MyFirstDrone(DroneAbstract):
         return not m.isinf(self.distance_from_closest_drone) and len(self.alive_received) == 0
 
     @property
+    def in_SAFEzone(self):
+        return not self.in_noGPSzone and not self.in_noCOMzone
+
+    @property
     def got_victim(self):
         return len(self.grasped_entities()) != 0
 
@@ -211,7 +215,7 @@ class MyFirstDrone(DroneAbstract):
 
     @property
     def tile_pos(self):
-        return (self.pos[0] / TILE_SIZE + 0.5).astype(np.uint32), (self.pos[1] / TILE_SIZE + 0.5).astype(np.uint32), self.pos[2]
+        return (self.pos[0] / TILE_SIZE + 0.5).astype(np.int32), (self.pos[1] / TILE_SIZE + 0.5).astype(np.int32), self.pos[2]
 
     def update_position(self):
         if self.odometer_values() is not None:
@@ -283,37 +287,40 @@ class MyFirstDrone(DroneAbstract):
         if self.is_dead or self.state == State.DONE.value:
             return None
 
-        if not self.in_noGPSzone and not self.in_noCOMzone and self.distance_from_closest_base > NO_SAFE_ON_BASE_DISTANCE:
-            add_entity(self.tile_pos[0], self.tile_pos[1], Entity.SAFE.value, self.entity_map, self.tile_map_size, SAFE_CONFIDENCE_RADIUS)
-        else:
-            if self.in_noGPSzone:
-                add_entity(self.tile_pos[0], self.tile_pos[1], Entity.NOGPS.value, self.entity_map, self.tile_map_size, CONFIDENCE_RADIUS)
-            if self.in_noCOMzone:
-                add_entity(self.tile_pos[0], self.tile_pos[1], Entity.NOCOM.value, self.entity_map, self.tile_map_size, CONFIDENCE_RADIUS)
-
         self.occupancy_map = process_lidar(self.occupancy_map, self.map_size, TILE_SIZE, self.tile_map_size, self.lidar_values(), self.lidar_rays_angles(),
                                            self.pos[:2], self.pos[2])
         (self.distance_from_closest_victim, self.distance_from_closest_base,
          self.distance_from_closest_drone) = process_semantic(self.semantic_values(), self.pos, self.tile_map_size, self.victims, self.state, self.bases, self.entity_map,
                                                               self.map_size, self.occupancy_map, self.victim_angle, self.detected_drones)
 
+        if self.in_SAFEzone and self.distance_from_closest_base > NO_SAFE_ON_BASE_DISTANCE:
+            add_entity(self.tile_pos[0], self.tile_pos[1], Entity.SAFE.value, self.entity_map, self.tile_map_size, SAFE_CONFIDENCE_RADIUS)
+        elif self.state != State.BOOT.value:
+            add_entity(self.tile_pos[0], self.tile_pos[1], Entity.VOID.value, self.entity_map, self.tile_map_size, SAFE_CONFIDENCE_RADIUS)
+            if self.in_noGPSzone:
+                add_entity(self.tile_pos[0], self.tile_pos[1], Entity.NOGPS.value, self.entity_map, self.tile_map_size, CONFIDENCE_RADIUS)
+            if self.in_noCOMzone:
+                add_entity(self.tile_pos[0], self.tile_pos[1], Entity.NOCOM.value, self.entity_map, self.tile_map_size, CONFIDENCE_RADIUS)
+
         stuck_manager(self.timers, self.speed, self.entity_map, self.path, self.drone_id)
 
         if not self.in_noGPSzone and not self.in_noCOMzone:
             detect_kills(self.detected_drones, self.alive_received, self.silent_drones, self.entity_map, self.tile_map_size)
 
-        self.path_map = compute_path_map(self.tile_map_size, self.occupancy_map, self.entity_map, self.state, self.target, tuple(self.detected_drones))
+        detected_drones_array = np.asarray(self.detected_drones, dtype=np.float32)
+        detected_drones_array = detected_drones_array.reshape(-1, 2)
+        self.path_map = compute_path_map(self.tile_map_size, self.occupancy_map, self.entity_map, self.state, self.target, detected_drones_array)
 
-        self.state, self.target = compute_behavior(self.drone_id, self.target, self.target_indication, self.tile_pos, self.path, self.speed, self.state, self.victims,
-                                                   self.distance_from_closest_victim, self.bases, self.distance_from_closest_base, self.got_victim, self.waypoints,
-                                                   self.n_width, self.n_height, self.tile_map_size, self.entity_map, self.path_map, self.timers,
-                                                   self.distance_from_closest_drone, self.abandon_victim)
+        self.state = compute_behavior(self.drone_id, self.target, self.target_indication, self.tile_pos, self.path, self.speed, self.state, self.victims,
+                                      self.distance_from_closest_victim, self.bases, self.distance_from_closest_base, self.got_victim, self.waypoints,
+                                      self.n_width, self.n_height, self.tile_map_size, self.entity_map, self.path_map, self.timers,
+                                      self.distance_from_closest_drone, self.abandon_victim)
 
         if self.abandon_victim[0]:
             print(f"{self.drone_id}: ohoh, there is an issue with self.abandon_victim")
             self.abandon_victim[0] = False
 
-        if is_defined(self.target):
+        if target_is_defined(self.target):
             self.path = find_path(self.tile_map_size, self.path_map, self.tile_pos, self.target, self.speed)
 
         # region testing

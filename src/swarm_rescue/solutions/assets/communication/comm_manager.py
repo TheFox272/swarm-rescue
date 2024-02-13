@@ -4,7 +4,7 @@ from solutions.assets.communication.comm_declarations import MsgType
 from typing import List, Tuple
 
 from swarm_rescue.solutions.assets.communication.share import intersect_waypoints, intersect_bases, intersect_occupancy, intersect_entity, intersect_victims
-from swarm_rescue.solutions.assets.mapping.semanticMapping import MAX_BASES_SIZE
+from swarm_rescue.solutions.assets.behavior.think import MAX_BASES_SIZE
 
 # region local constants
 MAX_MESSAGE_MEMORY = 20

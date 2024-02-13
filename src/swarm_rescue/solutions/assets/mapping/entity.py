@@ -58,7 +58,7 @@ def compare_entity(entity: np.uint, other_entity: np.uint):
         elif other_entity == Entity.KILL.value:
             return True
         elif other_entity == Entity.SAFE.value:
-            return True
+            return False
     elif entity == Entity.NOGPS.value:
         if other_entity == Entity.VOID.value:
             return True
@@ -71,7 +71,7 @@ def compare_entity(entity: np.uint, other_entity: np.uint):
         elif other_entity == Entity.KILL.value:
             return False
         elif other_entity == Entity.SAFE.value:
-            return False
+            return True
     elif entity == Entity.NOCOM.value:
         if other_entity == Entity.VOID.value:
             return True
@@ -84,9 +84,20 @@ def compare_entity(entity: np.uint, other_entity: np.uint):
         elif other_entity == Entity.KILL.value:
             return True
         elif other_entity == Entity.SAFE.value:
-            return False
+            return True
     elif entity == Entity.BASE.value:
-        return True
+        if other_entity == Entity.VOID.value:
+            return True
+        elif other_entity == Entity.WALL.value:
+            return True
+        elif other_entity == Entity.NOGPS.value:
+            return True
+        elif other_entity == Entity.NOCOM.value:
+            return True
+        elif other_entity == Entity.KILL.value:
+            return True
+        elif other_entity == Entity.SAFE.value:
+            return False
     elif entity == Entity.KILL.value:
         if other_entity == Entity.VOID.value:
             return True
@@ -108,9 +119,9 @@ def compare_entity(entity: np.uint, other_entity: np.uint):
         elif other_entity == Entity.NOGPS.value:
             return True
         elif other_entity == Entity.NOCOM.value:
-            return True
-        elif other_entity == Entity.BASE.value:
             return False
+        elif other_entity == Entity.BASE.value:
+            return True
         elif other_entity == Entity.KILL.value:
             return True
 

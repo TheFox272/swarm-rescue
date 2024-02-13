@@ -4,8 +4,9 @@ import tcod.path
 import numba as nb
 from typing import List, Tuple
 
+from swarm_rescue.solutions.assets.behavior.anti_kill_zone import CLOSE_DRONE_DISTANCE
 from swarm_rescue.solutions.assets.mapping.entity import Entity, add_entity, bounded_variation
-from swarm_rescue.solutions.assets.mapping.mapping_constants import INV_TILE_SIZE
+from swarm_rescue.solutions.assets.mapping.mapping_constants import INV_TILE_SIZE, TILE_SIZE
 from swarm_rescue.solutions.assets.behavior.state import State
 
 # region local constants
@@ -17,7 +18,7 @@ Constant used in :py:func:`compute_path_map`, corresponding to the base weight o
 :type: int
 :domain: [:py:data:`CLOUD_BONUS` + 1, inf]
 """
-WALL_WEIGHT = BASIC_WEIGHT * 5
+WALL_WEIGHT = BASIC_WEIGHT * 8
 """
 Constant used in :py:func:`f_runoff`, corresponding to the additional weight that the drone will put on a wall in his 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`. In other words, how much the drone will avoid the surroundings of a wall.
@@ -50,7 +51,8 @@ instead of always taking the same paths.
 :type: int
 :domain: [0, :py:data:`BASE_WEIGHT` - 1]
 """
-PRUDENCE = BASIC_WEIGHT * 4
+SAFE_PRUDENCE = BASIC_WEIGHT * 8
+PRUDENCE = BASIC_WEIGHT * 8
 """
 Constant used in :py:func:`compute_path_map`, corresponding to the malus weight of the cloud tiles of 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map` when the drone is carrying a victim. It avoids the drone from going into a 
@@ -59,7 +61,7 @@ kill zone with a victim.
 :type: int
 :domain: [0, inf]
 """
-DRONE_RELUCTANCE = BASIC_WEIGHT * 4
+DRONE_RELUCTANCE = BASIC_WEIGHT * 2
 """
 Constant used in :py:func:`compute_path_map`, corresponding to the malus weight of the other drone's tiles of 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`.
@@ -67,7 +69,7 @@ Constant used in :py:func:`compute_path_map`, corresponding to the malus weight 
 :type: int
 :domain: [0, inf]
 """
-KILL_RELUCTANCE = BASIC_WEIGHT * 2
+KILL_RELUCTANCE = BASIC_WEIGHT * 8
 """
 Constant used in :py:func:`compute_path_map`, corresponding to the malus weight of the kill zone tiles of 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`.
@@ -76,18 +78,25 @@ Constant used in :py:func:`compute_path_map`, corresponding to the malus weight 
 :domain: [0, inf]
 """
 VICTIM_ZONE = 1
+DRONE_ZONE = 1
 
 NO_GO_ENTITIES = (Entity.WALL.value, Entity.BASE.value, Entity.KILL.value)
 # endregion
 
-f_runoff = nb.njit(lambda distance, weight, runoff: np.int8(round(BASIC_WEIGHT + weight * (1 - (distance - 1) / runoff), 0)))
+f_runoff = nb.njit(lambda distance, weight, runoff: np.uint8(round(BASIC_WEIGHT + weight * (1 - distance / (runoff+1.0)), 0)))
 """Used to compute the impact of a wall on :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`. Used in 
 :py:func:`compute_path_map`.
 """
 
 
 @nb.njit
-def compute_path_map(tile_map_size: Tuple[np.int32, np.int32], occupancy_map: np.ndarray, entity_map: np.ndarray, state: State, target, detected_drones) -> np.ndarray:
+def is_drone_close(x, y, detected_drones):
+    distances = np.sqrt((x - detected_drones[:, 0])**2 + (y - detected_drones[:, 1])**2)
+    return np.any(distances <= CLOSE_DRONE_DISTANCE)
+
+
+@nb.njit
+def compute_path_map(tile_map_size: Tuple[np.int32, np.int32], occupancy_map: np.ndarray, entity_map: np.ndarray, state: State, target, detected_drones: np.ndarray) -> np.ndarray:
     """Computes the path that the drone will use for its pathfinding
 
     Args:
@@ -109,13 +118,13 @@ def compute_path_map(tile_map_size: Tuple[np.int32, np.int32], occupancy_map: np
                 add_entity(x, y, Entity.WALL.value, entity_map, tile_map_size)
             # endregion
 
-            if x == 0 or x == tile_map_size[0] - 1 or y == 0 or y == tile_map_size[1] - 1 or entity_map[x, y] in NO_GO_ENTITIES or (x, y) in detected_drones:
-                if (x, y) in detected_drones:
-                    replace_walls = True
+            tile_is_drone = is_drone_close(x * TILE_SIZE, y * TILE_SIZE, detected_drones)
+            if x == 0 or x == tile_map_size[0] - 1 or y == 0 or y == tile_map_size[1] - 1 or entity_map[x, y] in NO_GO_ENTITIES or tile_is_drone:
+                if tile_is_drone:
+                    add_entity(x, y, Entity.VOID.value, entity_map, tile_map_size, DRONE_ZONE)
                     runoff = DRONE_RUNOFF
                     weight = WALL_WEIGHT * DRONE_RELUCTANCE
                 else:
-                    replace_walls = False
                     path_map[x, y] = 0
                     runoff = WALL_RUNOFF
                     if entity_map[x, y] == Entity.KILL.value:
@@ -125,15 +134,16 @@ def compute_path_map(tile_map_size: Tuple[np.int32, np.int32], occupancy_map: np
                 for i in bounded_variation(x, runoff, tile_map_size[0]):
                     for j in bounded_variation(y, runoff, tile_map_size[1]):
                         distance = m.sqrt((x - i) ** 2 + (y - j) ** 2)
-                        if distance <= runoff and (replace_walls or path_map[i, j] != 0):
+                        if path_map[i, j] != 0 and distance <= runoff:
                             path_map[i, j] = max(path_map[i, j], f_runoff(distance, weight, runoff))
-                            if replace_walls:
-                                add_entity(i, j, Entity.VOID.value, entity_map, tile_map_size)
-            elif entity_map[x, y] == Entity.CLOUD.value and path_map[x, y] != 0:
-                if state == State.SAVE.value:
-                    path_map[x, y] += PRUDENCE
-                else:
-                    path_map[x, y] -= CLOUD_BONUS
+            elif path_map[x, y] != 0:
+                if entity_map[x, y] == Entity.CLOUD.value:
+                    if state == State.SAVE.value:
+                        path_map[x, y] += PRUDENCE
+                    else:
+                        path_map[x, y] -= CLOUD_BONUS
+                elif state == State.SAVE.value and entity_map[x, y] != Entity.SAFE.value:
+                    path_map[x, y] += SAFE_PRUDENCE
 
     if state == State.RESCUE.value:
         for i in bounded_variation(target[0], VICTIM_ZONE, tile_map_size[0]):
@@ -156,10 +166,10 @@ def anticipate_pos(tile_pos, speed, tile_map_size):
     """
     x = min(max(0, tile_pos[0] + int(speed[0] * INV_TILE_SIZE)), tile_map_size[0] - 1)
     y = min(max(0, tile_pos[1] + int(speed[1] * INV_TILE_SIZE)), tile_map_size[1] - 1)
-    return np.array([x, y], dtype=np.uint32)
+    return np.array([x, y], dtype=np.int32)
 
 
-def find_path(tile_map_size: Tuple[np.int32, np.int32], path_map: np.ndarray, tile_pos: np.ndarray, target_pos: Tuple[int, int], drone_speed: np.ndarray) -> (
+def find_path(tile_map_size: Tuple[np.int32, np.int32], path_map: np.ndarray, tile_pos: np.ndarray, target_pos: np.ndarray, drone_speed: np.ndarray) -> (
         List)[Tuple[int, int]]:
     """Computes the shortest path
 
@@ -181,7 +191,8 @@ def find_path(tile_map_size: Tuple[np.int32, np.int32], path_map: np.ndarray, ti
     pf = tcod.path.Pathfinder(graph)
     pf.add_root(anticipate_pos(tile_pos, drone_speed, tile_map_size))
 
-    computed_path = pf.path_to(target_pos)
+    target = tuple(target_pos.copy())
+    computed_path = pf.path_to(target)
 
     path_map[tile_pos[0], tile_pos[1]] = old_pos_value
     path_map[target_pos[0], target_pos[1]] = old_target_value
