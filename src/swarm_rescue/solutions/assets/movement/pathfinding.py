@@ -18,7 +18,7 @@ Constant used in :py:func:`compute_path_map`, corresponding to the base weight o
 :type: int
 :domain: [:py:data:`CLOUD_BONUS` + 1, inf]
 """
-WALL_WEIGHT = BASIC_WEIGHT * 8
+WALL_WEIGHT = BASIC_WEIGHT * 16
 """
 Constant used in :py:func:`f_runoff`, corresponding to the additional weight that the drone will put on a wall in his 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`. In other words, how much the drone will avoid the surroundings of a wall.
@@ -95,7 +95,7 @@ def is_drone_close(x, y, detected_drones):
     return np.any(distances <= CLOSE_DRONE_DISTANCE)
 
 
-@nb.njit
+@nb.njit(parallel=True, fastmath=True)
 def compute_path_map(tile_map_size: Tuple[np.int32, np.int32], occupancy_map: np.ndarray, entity_map: np.ndarray, state: State, target, detected_drones: np.ndarray) -> np.ndarray:
     """Computes the path that the drone will use for its pathfinding
 
@@ -109,8 +109,8 @@ def compute_path_map(tile_map_size: Tuple[np.int32, np.int32], occupancy_map: np
         The resulting :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`.
     """
     path_map = BASIC_WEIGHT * np.ones(tile_map_size, dtype=np.int8)
-    for x in np.arange(0, tile_map_size[0]):
-        for y in np.arange(0, tile_map_size[1]):
+    for x in nb.prange(0, tile_map_size[0]):
+        for y in nb.prange(0, tile_map_size[1]):
             # region updates entity_map
             if occupancy_map[x, y] < 0:
                 add_entity(x, y, Entity.VOID.value, entity_map, tile_map_size)
@@ -142,7 +142,7 @@ def compute_path_map(tile_map_size: Tuple[np.int32, np.int32], occupancy_map: np
                         path_map[x, y] += PRUDENCE
                     else:
                         path_map[x, y] -= CLOUD_BONUS
-                elif state == State.SAVE.value and entity_map[x, y] != Entity.SAFE.value:
+                elif state == State.SAVE.value and entity_map[x, y] not in [Entity.SAFE.value, Entity.NOCOM.value, Entity.NOGPS.value]:
                     path_map[x, y] += SAFE_PRUDENCE
 
     if state == State.RESCUE.value:

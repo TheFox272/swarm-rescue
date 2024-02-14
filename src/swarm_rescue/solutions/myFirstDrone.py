@@ -3,6 +3,8 @@ import os
 import sys
 from typing import Optional
 
+from time import time # to test
+
 import arcade  # for drawing
 import numpy as np
 
@@ -22,7 +24,7 @@ from swarm_rescue.solutions.assets.mapping.lidarMapping import process_lidar
 from swarm_rescue.solutions.assets.mapping.semanticMapping import process_semantic
 from swarm_rescue.solutions.assets.mapping.mapping_constants import TILE_SIZE
 from swarm_rescue.solutions.assets.behavior.state import State
-from swarm_rescue.solutions.assets.behavior.map_split import zone_split, waypoint_pos
+from swarm_rescue.solutions.assets.behavior.map_split import zone_split, waypoint_pos, init_zone_split
 from swarm_rescue.solutions.assets.movement.pathfinding import BASIC_WEIGHT, WALL_WEIGHT
 from swarm_rescue.solutions.assets.behavior.think import compute_behavior, is_defined, undefined_index, undefined_target, undefined_waypoint, target_is_defined
 
@@ -134,7 +136,8 @@ class MyFirstDrone(DroneAbstract):
         :type: State
         """
         self.nb_drones = misc_data.number_drones
-        self.waypoints, self.n_width, self.n_height = zone_split(self.tile_map_size, self.tile_pos, self.nb_drones, self.drone_id)  # WIP
+        self.waypoints_dims = np.empty(2, dtype=np.int32)
+        self.waypoints = init_zone_split(self.tile_map_size, self.waypoints_dims)
         self.target_indication = {"victim": undefined_index, "waypoint": undefined_waypoint, "base": False}
         self.victims = list()
         self.distance_from_closest_victim = m.inf
@@ -275,8 +278,7 @@ class MyFirstDrone(DroneAbstract):
             self.comm_timers["share_victims"] = 0
 
         compute_received_com(self.communicator.received_messages, self.to_send, self.alive_received, self.processed_msg, self.abandon_victim, self.drone_id, self.waypoints,
-                             self.bases,
-                             self.occupancy_map, self.entity_map, self.tile_map_size, self.victims, self.in_noGPSzone)
+                             self.bases, self.occupancy_map, self.entity_map, self.tile_map_size, self.victims, self.in_noGPSzone)
 
         return self.to_send
 
@@ -289,6 +291,7 @@ class MyFirstDrone(DroneAbstract):
 
         self.occupancy_map = process_lidar(self.occupancy_map, self.map_size, TILE_SIZE, self.tile_map_size, self.lidar_values(), self.lidar_rays_angles(),
                                            self.pos[:2], self.pos[2])
+
         (self.distance_from_closest_victim, self.distance_from_closest_base,
          self.distance_from_closest_drone) = process_semantic(self.semantic_values(), self.pos, self.tile_map_size, self.victims, self.state, self.bases, self.entity_map,
                                                               self.map_size, self.occupancy_map, self.victim_angle, self.detected_drones)
@@ -302,7 +305,7 @@ class MyFirstDrone(DroneAbstract):
             if self.in_noCOMzone:
                 add_entity(self.tile_pos[0], self.tile_pos[1], Entity.NOCOM.value, self.entity_map, self.tile_map_size, CONFIDENCE_RADIUS)
 
-        stuck_manager(self.timers, self.speed, self.entity_map, self.path, self.drone_id)
+        stuck_manager(self.timers, self.speed, self.entity_map, self.path)
 
         if not self.in_noGPSzone and not self.in_noCOMzone:
             detect_kills(self.detected_drones, self.alive_received, self.silent_drones, self.entity_map, self.tile_map_size)
@@ -312,12 +315,10 @@ class MyFirstDrone(DroneAbstract):
         self.path_map = compute_path_map(self.tile_map_size, self.occupancy_map, self.entity_map, self.state, self.target, detected_drones_array)
 
         self.state = compute_behavior(self.drone_id, self.target, self.target_indication, self.tile_pos, self.path, self.speed, self.state, self.victims,
-                                      self.distance_from_closest_victim, self.bases, self.distance_from_closest_base, self.got_victim, self.waypoints,
-                                      self.n_width, self.n_height, self.tile_map_size, self.entity_map, self.path_map, self.timers,
-                                      self.distance_from_closest_drone, self.abandon_victim)
-
+                                      self.distance_from_closest_victim, self.bases, self.distance_from_closest_base, self.got_victim, self.waypoints, self.waypoints_dims,
+                                      self.tile_map_size, self.entity_map, self.path_map, self.timers, self.abandon_victim, self.nb_drones)
         if self.abandon_victim[0]:
-            print(f"{self.drone_id}: ohoh, there is an issue with self.abandon_victim")
+            # print(f"{self.drone_id}: ohoh, there is an issue with self.abandon_victim")
             self.abandon_victim[0] = False
 
         if target_is_defined(self.target):
@@ -394,8 +395,8 @@ class MyFirstDrone(DroneAbstract):
             # draw_map(self.occupancy_map, TILE_SIZE, self.map_size, self.pos[:2], self.pos[2])
 
         if self.draw_waypoints:  # displays the waypoints
-            for i in range(self.n_width):
-                for j in range(self.n_height):
+            for i in range(self.waypoints_dims[0]):
+                for j in range(self.waypoints_dims[1]):
                     if self.waypoints[i, j] != 0:
                         if self.waypoints[i, j] == 1:
                             color = waypoint_color

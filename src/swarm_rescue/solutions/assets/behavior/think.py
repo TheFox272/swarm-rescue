@@ -7,7 +7,7 @@ import tcod.path
 
 from swarm_rescue.solutions.assets.mapping.entity import Entity, bounded_variation
 from swarm_rescue.solutions.assets.movement.pathfinding import anticipate_pos, find_path
-from swarm_rescue.solutions.assets.behavior.map_split import ZONE_SIZE, waypoint_pos
+from swarm_rescue.solutions.assets.behavior.map_split import ZONE_SIZE, waypoint_pos, zone_split
 from swarm_rescue.solutions.assets.behavior.state import State
 
 # region local constants
@@ -31,7 +31,7 @@ MAX_BASES_SIZE = 8
 # endregion
 
 
-def next_waypoint(tile_pos, drone_speed, waypoints, n_width, n_height, tile_map_size, path_map):
+def next_waypoint(tile_pos, drone_speed, waypoints, waypoints_dims, tile_map_size, path_map):
     if 2 in waypoints:
         exigence = 2
     elif 1 in waypoints:
@@ -45,12 +45,14 @@ def next_waypoint(tile_pos, drone_speed, waypoints, n_width, n_height, tile_map_
     best_waypoint = None
     best_distance = m.inf
 
-    for i in np.arange(n_width):
-        for j in np.arange(n_height):
+    for i in np.arange(waypoints_dims[0]):
+        for j in np.arange(waypoints_dims[1]):
             if waypoints[i, j] == exigence:
                 x, y = waypoint_pos(i, j)
                 distance = len(pf.path_to((x, y)))
-                if distance < best_distance:
+                if distance <= EXPLORED_PATH_DISTANCE:
+                    waypoints[i, j] = EXPLORED_WP_VALUE
+                elif distance < best_distance:
                     best_waypoint = (i, j)
                     best_distance = distance
 
@@ -115,9 +117,9 @@ def next_base(tile_pos, drone_speed, bases, tile_map_size, path_map, distance_fr
 
 
 @nb.njit
-def waypoints_scan(n_width, n_height, waypoints, tile_map_size, entity_map):
-    for i in np.arange(n_width):
-        for j in np.arange(n_height):
+def waypoints_scan(waypoints_dims, waypoints, tile_map_size, entity_map):
+    for i in np.arange(waypoints_dims[0]):
+        for j in np.arange(waypoints_dims[1]):
             if waypoints[i, j] != EXPLORED_WP_VALUE and partially_explored(waypoint_pos(i, j), tile_map_size, entity_map):
                 waypoints[i, j] = EXPLORED_WP_VALUE
 
@@ -173,15 +175,16 @@ undefined_waypoint = (-1, -1)
 undefined_index = -1
 
 
-def compute_behavior(id, target, target_indication, tile_pos, path, speed, state, victims, distance_from_closest_victim, bases, distance_from_closest_base,
-                     got_victim, waypoints, n_width, n_height, tile_map_size, entity_map, path_map, timers, distance_from_closest_drone, abandon_victim):
+def compute_behavior(drone_id, target, target_indication, tile_pos, path, speed, state, victims, distance_from_closest_victim, bases, distance_from_closest_base,
+                     got_victim, waypoints, waypoints_dims, tile_map_size, entity_map, path_map, timers, abandon_victim, nb_drones):
     if timers["waypoints_scan"] == WAYPOINTS_SCAN:
         timers["waypoints_scan"] = 0
-        waypoints_scan(n_width, n_height, waypoints, tile_map_size, entity_map)
+        waypoints_scan(waypoints_dims, waypoints, tile_map_size, entity_map)
     else:
         timers["waypoints_scan"] += 1
 
     if state == State.BOOT.value:
+        zone_split(tile_map_size, tile_pos, nb_drones, drone_id, waypoints, waypoints_dims)
         return State.EXPLORE.value
 
     elif state == State.DONE.value:
@@ -192,7 +195,7 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
         if best_victim_index is not None and len(bases) != 0:
             timers["waypoints_scan"] = 0  # resets the timer for next time it explores
             target_indication["waypoint"] = undefined_waypoint
-            victims[best_victim_index][2] = id
+            victims[best_victim_index][2] = drone_id
             target_indication["victim"] = best_victim_index
             target[:2] = tuple(victims[best_victim_index][:2])
             return State.RESCUE.value
@@ -206,7 +209,7 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
                 else:
                     return State.EXPLORE.value
             else:
-                target_waypoint = next_waypoint(tile_pos, speed, waypoints, n_width, n_height, tile_map_size, path_map)
+                target_waypoint = next_waypoint(tile_pos, speed, waypoints, waypoints_dims, tile_map_size, path_map)
                 if target_waypoint is None:
                     undefine_target(target)
                     return State.DONE.value
@@ -221,7 +224,7 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
             abandon_victim[0] = False
             target_indication["victim"] = undefined_index
             undefine_target(target)
-            # print(f"{id}: leaving my target")
+            # print(f"{drone_id}: leaving my target")
             return State.EXPLORE.value
 
         # actualise victim position
@@ -253,8 +256,8 @@ def compute_behavior(id, target, target_indication, tile_pos, path, speed, state
 
         if abandon_victim[0]:  # if told to let the victim while he was about to catch it, catch is nonetheless
             abandon_victim[0] = False
-            victims[target_indication["victim"]][2] = id
-            # print(f"{id}: I do not care, I'll catch it")
+            victims[target_indication["victim"]][2] = drone_id
+            # print(f"{drone_id}: I do not care, I'll catch it")
 
         if not target_indication["base"] and got_victim:
             target_indication["base"] = True
