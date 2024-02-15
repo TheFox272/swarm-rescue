@@ -11,6 +11,9 @@ from maps.map_intermediate_02 import MyMapIntermediate02
 from maps.map_final_2023 import MyMapFinal
 from maps.map_medium_01 import MyMapMedium01
 from maps.map_medium_02 import MyMapMedium02
+from maps.A_map_test_kill_zone import MapTestKillZone
+from maps.A_map_test_squeeze import MapTestSqueeze
+from maps.A_map_mini_eval import MapMiniEval
 
 from solutions.myFirstDrone import MyFirstDrone
 
@@ -21,7 +24,7 @@ class MyDrone(MyFirstDrone):
 
 
 # Map selection
-class MyMap(MyMapMedium02):
+class MyMap(MapMiniEval):
     pass
 
 
