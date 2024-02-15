@@ -5,7 +5,7 @@ import math as m
 from swarm_rescue.solutions.assets.mapping.mapping_constants import TILE_SIZE
 
 # region local constants
-PROJECT_COEF = 0.35
+PROJECT_COEF = 0.3
 ZONE_SIZE = 10  # multiple of 2
 
 
@@ -59,7 +59,7 @@ def waypoint_pos(i, j):
 def init_zone_split(tile_map_size, waypoints_dims):
     waypoints_dims[0] = int(2 * tile_map_size[0] / ZONE_SIZE)
     waypoints_dims[1] = int(tile_map_size[1] / ZONE_SIZE)
-    return np.ones((waypoints_dims[0], waypoints_dims[1]), dtype=np.uint8)
+    return np.ones((waypoints_dims[0], waypoints_dims[1]), dtype=np.int32)
 
 
 @nb.njit

@@ -15,17 +15,23 @@ VICTIM_DETECTION_MARGIN = m.ceil(3 * VICTIM_RADIUS / TILE_SIZE) + 1
 BASE_DETECTION_MARGIN = 0.5
 MIN_SEMANTIC_DISTANCE = 50
 DRONE_DETECTION_MARGIN = CLOSE_DRONE_DISTANCE
-CLEAR_VALUE = - THRESHOLD_MAX / 4
+DRONE_TRACE_DETECTION_MARGIN = CLOSE_DRONE_DISTANCE / 5
+CLEAR_VALUE = - THRESHOLD_MAX / 3
+DRONE_IN_MEMORY_CYCLES = 8
 
 
 # endregion
 
 
-def process_semantic(semantic_values, pos, tile_map_size, victims, state, bases, entity_map, map_size, occupancy_map, victim_angle, detected_drones):
+def process_semantic(semantic_values, pos, tile_map_size, victims, state, bases, entity_map, map_size, occupancy_map, victim_angle, detected_drones, detected_drones_traces,
+                     in_noCOMzone):
     distance_from_closest_victim = m.inf
     distance_from_closest_base = m.inf
-    detected_drones[:] = list()
     distance_from_closest_drone = m.inf
+    detected_drones[:] = list()
+    new_detected_drones_traces = {(x, y): count - 1 for (x, y), count in detected_drones_traces.items() if count > 1}
+    detected_drones_traces.clear()
+    detected_drones_traces.update(new_detected_drones_traces)
 
     if semantic_values is not None and len(semantic_values) != 0 and not m.isnan(semantic_values[0].distance):
 
@@ -63,6 +69,9 @@ def process_semantic(semantic_values, pos, tile_map_size, victims, state, bases,
                 #     clear_view(pos, target_x, target_y, occupancy_map, tile_map_size, map_size)
 
             elif data.entity_type.value == DroneSemanticSensor.TypeEntity.DRONE.value:
+                closest_detected = next((drone for drone in list(detected_drones_traces.keys()) if m.dist((target_x, target_y), drone) <= DRONE_TRACE_DETECTION_MARGIN),
+                                        (target_x, target_y))
+                detected_drones_traces[closest_detected] = DRONE_IN_MEMORY_CYCLES * (1 + in_noCOMzone * 2)
                 if min([m.dist(drone, [target_x, target_y]) for drone in detected_drones] + [m.inf]) > DRONE_DETECTION_MARGIN:
                     detected_drones.append((target_x, target_y))
                 if data.distance < distance_from_closest_drone:

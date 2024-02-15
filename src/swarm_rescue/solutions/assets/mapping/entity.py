@@ -26,7 +26,7 @@ priority_table = np.array(list(priority_table.values()))
 
 
 @nb.njit
-def compare_entity(entity: np.uint, other_entity: np.uint):
+def compare_entity(entity: np.int32, other_entity: np.int32):
     if entity == other_entity:
         return True
     elif entity == Entity.CLOUD.value:
@@ -58,7 +58,7 @@ def compare_entity(entity: np.uint, other_entity: np.uint):
         elif other_entity == Entity.KILL.value:
             return True
         elif other_entity == Entity.SAFE.value:
-            return False
+            return True
     elif entity == Entity.NOGPS.value:
         if other_entity == Entity.VOID.value:
             return True
@@ -129,7 +129,7 @@ def compare_entity(entity: np.uint, other_entity: np.uint):
 
 
 @nb.njit
-def max_entity(entity: np.uint, other_entity: np.uint):
+def max_entity(entity: np.int32, other_entity: np.int32):
     if compare_entity(entity, other_entity):
         return entity
     else:
@@ -145,7 +145,7 @@ def bounded_variation(x, variation, x_sup, x_inf=0):
 
 
 @nb.njit
-def add_entity(x: np.uint, y: np.uint, entity: int, entity_map: np.ndarray, tile_map_size: Tuple[np.int32, np.int32], radius=0):
+def add_entity(x: np.int32, y: np.int32, entity: int, entity_map: np.ndarray, tile_map_size: Tuple[np.int32, np.int32], radius=0):
     if radius == 0:
         entity_map[x, y] = max_entity(entity, entity_map[x, y])
     else:

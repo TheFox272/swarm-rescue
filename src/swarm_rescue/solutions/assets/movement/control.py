@@ -45,6 +45,8 @@ SWAP_ROT_PATH_LEN = 15
 :type: uint
 :domain: [1, inf]
 """
+
+
 # endregion
 
 def signed_angle(a: float) -> float:
@@ -64,7 +66,7 @@ def signed_angle(a: float) -> float:
         return a
 
 
-def first_weighted_avg(nList: List[float], n: np.uint) -> float:
+def first_weighted_avg(nList: List[float], n: np.int32) -> float:
     """Computes the weighted average of n points, the first elements being the heaviest
 
     Args:
@@ -76,15 +78,15 @@ def first_weighted_avg(nList: List[float], n: np.uint) -> float:
     """
     res = 0
     for i in range(n):
-        res += nList[i] * (n-i)
-    res /= n * (n+1) / 2
+        res += nList[i] * (n - i)
+    res /= n * (n + 1) / 2
     return res
 
 
-f_slow = nb.njit(lambda weight: 1.8 - 1.8 / (weight + 1))
+f_slow = nb.njit(lambda weight: 1.9 - 1.9 / (weight + 1))
 
 
-def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos: np.ndarray, state: State, victim_angle: np.ndarray, distance_from_closest_base)\
+def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos: np.ndarray, state: State, victim_angle: np.ndarray, distance_from_closest_base, slowdown: bool) \
         -> dict[str, float]:
     """Computes the command of the drone
 
@@ -140,5 +142,8 @@ def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos:
         if state == State.SAVE.value and distance_from_closest_base < DROP_DISTANCE:
             command["forward"] /= 4
             command["lateral"] /= 4
+        elif slowdown:
+            command["forward"] *= -1
+            command["lateral"] *= -1
 
         return command

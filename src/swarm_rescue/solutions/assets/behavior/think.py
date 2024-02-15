@@ -14,7 +14,7 @@ from swarm_rescue.solutions.assets.behavior.state import State
 GRAB_DISTANCE = 28
 DROP_DISTANCE = 60
 EXPLORED_PATH_DISTANCE = 2
-ZONE_COMPLETION = 92
+ZONE_COMPLETION = 85
 VICTIM_RESCUED_NB = -2
 VICTIM_WAITING_NB = -1
 
@@ -25,23 +25,30 @@ VICTIM_WAIT = 4
 
 EXPLORED_WP_VALUE = 0
 
-MAX_BASES_SIZE = 8
+MAX_BASES_SIZE = 16
+
+NOGPS_WAYPOINT = -1
 
 
 # endregion
 
 
-def next_waypoint(tile_pos, drone_speed, waypoints, waypoints_dims, tile_map_size, path_map):
-    if 2 in waypoints:
+def next_waypoint(tile_pos, drone_speed, waypoints, waypoints_dims, tile_map_size, path_map, in_noGPSzone, entity_map):
+    if np.any(waypoints == 2):
         exigence = 2
-    elif 1 in waypoints:
+    elif np.any(waypoints == 1):
         exigence = 1
+    # elif np.any(waypoints == NOGPS_WAYPOINT):
+    #     exigence = NOGPS_WAYPOINT
     else:
         return None
 
+    old_pos_value = path_map[tile_pos[0], tile_pos[1]]
+    path_map[tile_pos[0], tile_pos[1]] = 1
     graph = tcod.path.SimpleGraph(cost=path_map, cardinal=1, diagonal=0)
     pf = tcod.path.Pathfinder(graph)
-    pf.add_root(anticipate_pos(tile_pos, drone_speed, tile_map_size))
+    anticipated_pos = anticipate_pos(tile_pos, drone_speed, tile_map_size, entity_map)
+    pf.add_root(anticipated_pos)
     best_waypoint = None
     best_distance = m.inf
 
@@ -51,11 +58,20 @@ def next_waypoint(tile_pos, drone_speed, waypoints, waypoints_dims, tile_map_siz
                 x, y = waypoint_pos(i, j)
                 distance = len(pf.path_to((x, y)))
                 if distance <= EXPLORED_PATH_DISTANCE:
-                    waypoints[i, j] = EXPLORED_WP_VALUE
+                    if in_noGPSzone:
+                        waypoints[i, j] = NOGPS_WAYPOINT
+                    else:
+                        waypoints[i, j] = EXPLORED_WP_VALUE
                 elif distance < best_distance:
                     best_waypoint = (i, j)
                     best_distance = distance
 
+    path_map[tile_pos[0], tile_pos[1]] = old_pos_value
+
+    if best_waypoint is None and (exigence == 2 or exigence == 1):
+        return next_waypoint(tile_pos, drone_speed, waypoints, waypoints_dims, tile_map_size, path_map, in_noGPSzone, entity_map)
+    # if best_waypoint is None:
+    #     pass
     return best_waypoint
 
 
@@ -69,16 +85,15 @@ def closest_victim(victim, victims, only_savable=False):
     if not indices.size:
         return None
 
-    # nodes = np.delete(nodes, 2, axis=1)
     dist_2 = np.sum((victims[indices, :2] - victim) ** 2, axis=1)
     return indices[np.argmin(dist_2)]
 
 
-def next_victim(tile_pos, drone_speed, victims, tile_map_size):
+def next_victim(tile_pos, drone_speed, victims, tile_map_size, entity_map):
     if len(victims) == 0:
         return None
 
-    drone_pos = anticipate_pos(tile_pos, drone_speed, tile_map_size)
+    drone_pos = anticipate_pos(tile_pos, drone_speed, tile_map_size, entity_map)
 
     victims_array = np.asarray(victims, dtype=np.int32)
     best_victim_index = closest_victim(drone_pos, victims_array, True)
@@ -100,7 +115,7 @@ def next_base(tile_pos, drone_speed, bases, tile_map_size, path_map, distance_fr
         valid_bases = bases[MAX_BASES_SIZE:]
         max_lookup = MAX_BASES_SIZE
     for base in bases[:max_lookup]:
-        distance = len(find_path(tile_map_size, path_map, tile_pos, np.asarray(base, dtype=np.int32), drone_speed))
+        distance = len(find_path(path_map, tile_pos[:2], np.asarray(base, dtype=np.int32)))
         if distance == 1 and m.isinf(distance_from_closest_base):  # means that base is isolated by walls somehow
             continue
         elif distance < best_distance:
@@ -117,15 +132,18 @@ def next_base(tile_pos, drone_speed, bases, tile_map_size, path_map, distance_fr
 
 
 @nb.njit
-def waypoints_scan(waypoints_dims, waypoints, tile_map_size, entity_map):
+def waypoints_scan(waypoints_dims, waypoints, tile_map_size, entity_map, in_noGPSzone):
     for i in np.arange(waypoints_dims[0]):
         for j in np.arange(waypoints_dims[1]):
-            if waypoints[i, j] != EXPLORED_WP_VALUE and partially_explored(waypoint_pos(i, j), tile_map_size, entity_map):
-                waypoints[i, j] = EXPLORED_WP_VALUE
+            if waypoints[i, j] != EXPLORED_WP_VALUE and partially_explored(waypoint_pos(i, j), tile_map_size, entity_map, in_noGPSzone):
+                if in_noGPSzone:
+                    waypoints[i, j] = NOGPS_WAYPOINT
+                else:
+                    waypoints[i, j] = EXPLORED_WP_VALUE
 
 
 @nb.njit
-def partially_explored(tile_pos, tile_map_size, entity_map):
+def partially_explored(tile_pos, tile_map_size, entity_map, in_noGPSzone):
     """
     check is the zone of center pos and size map_size is explored or not
     """
@@ -137,18 +155,19 @@ def partially_explored(tile_pos, tile_map_size, entity_map):
                 zone_knowledge += 5
             elif entity_map[i, j] == Entity.WALL.value:
                 zone_knowledge += 1
-            elif entity_map[i, j] == Entity.CLOUD.value and 0 <= i < tile_map_size[0] and 0 <= j < tile_map_size[1]:
+            elif ((entity_map[i, j] == Entity.CLOUD.value or (not in_noGPSzone and entity_map[i, j] == Entity.NOGPS.value)) and 0 <= i < tile_map_size[0] and 0 <= j <
+                  tile_map_size[1]):
                 zone_knowledge -= 1
                 if zone_knowledge < zone_area * ZONE_COMPLETION / 100:
                     return False
     return True
 
 
-def is_explored(waypoints, target_waypoint, path, tile_map_size, entity_map):
+def is_explored(waypoints, target_waypoint, path, tile_map_size, entity_map, in_noGPSzone):
     if waypoints[target_waypoint[0], target_waypoint[1]] == EXPLORED_WP_VALUE or len(path) <= EXPLORED_PATH_DISTANCE:
         return True
     else:
-        return partially_explored(waypoint_pos(target_waypoint[0], target_waypoint[1]), tile_map_size, entity_map)
+        return partially_explored(waypoint_pos(target_waypoint[0], target_waypoint[1]), tile_map_size, entity_map, in_noGPSzone)
 
 
 @nb.njit
@@ -176,10 +195,10 @@ undefined_index = -1
 
 
 def compute_behavior(drone_id, target, target_indication, tile_pos, path, speed, state, victims, distance_from_closest_victim, bases, distance_from_closest_base,
-                     got_victim, waypoints, waypoints_dims, tile_map_size, entity_map, path_map, timers, abandon_victim, nb_drones):
+                     got_victim, waypoints, waypoints_dims, tile_map_size, entity_map, path_map, timers, abandon_victim, nb_drones, in_noGPSzone):
     if timers["waypoints_scan"] == WAYPOINTS_SCAN:
         timers["waypoints_scan"] = 0
-        waypoints_scan(waypoints_dims, waypoints, tile_map_size, entity_map)
+        waypoints_scan(waypoints_dims, waypoints, tile_map_size, entity_map, in_noGPSzone)
     else:
         timers["waypoints_scan"] += 1
 
@@ -191,7 +210,7 @@ def compute_behavior(drone_id, target, target_indication, tile_pos, path, speed,
         return state
 
     elif state == State.EXPLORE.value:
-        best_victim_index = next_victim(tile_pos, speed, victims, tile_map_size)
+        best_victim_index = next_victim(tile_pos, speed, victims, tile_map_size, entity_map)
         if best_victim_index is not None and len(bases) != 0:
             timers["waypoints_scan"] = 0  # resets the timer for next time it explores
             target_indication["waypoint"] = undefined_waypoint
@@ -201,15 +220,18 @@ def compute_behavior(drone_id, target, target_indication, tile_pos, path, speed,
             return State.RESCUE.value
         else:
             if waypoint_is_defined(target_indication["waypoint"]):
-                if is_explored(waypoints, target_indication["waypoint"], path, tile_map_size, entity_map):
-                    waypoints[target_indication["waypoint"]] = EXPLORED_WP_VALUE
+                if is_explored(waypoints, target_indication["waypoint"], path, tile_map_size, entity_map, in_noGPSzone):
+                    if in_noGPSzone:
+                        waypoints[target_indication["waypoint"]] = NOGPS_WAYPOINT
+                    else:
+                        waypoints[target_indication["waypoint"]] = EXPLORED_WP_VALUE
                     target_indication["waypoint"] = undefined_waypoint
                     undefine_target(target)
                     return State.EXPLORE.value
                 else:
                     return State.EXPLORE.value
             else:
-                target_waypoint = next_waypoint(tile_pos, speed, waypoints, waypoints_dims, tile_map_size, path_map)
+                target_waypoint = next_waypoint(tile_pos, speed, waypoints, waypoints_dims, tile_map_size, path_map, in_noGPSzone, entity_map)
                 if target_waypoint is None:
                     undefine_target(target)
                     return State.DONE.value

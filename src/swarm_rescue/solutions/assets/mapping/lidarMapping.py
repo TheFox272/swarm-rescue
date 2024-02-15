@@ -7,12 +7,12 @@ from swarm_rescue.spg_overlay.utils.constants import MAX_RANGE_LIDAR_SENSOR
 
 # region local constants
 EVERY_N = 3
-LIDAR_DIST_CLIP = 40.0
+LIDAR_DIST_CLIP = 10.0
 EMPTY_ZONE_VALUE = -0.602
 OBSTACLE_ZONE_VALUE = 2.0
 FREE_ZONE_VALUE = -4.0
-THRESHOLD_MIN = -40
-THRESHOLD_MAX = 40
+THRESHOLD_MIN = -20
+THRESHOLD_MAX = 20
 # endregion
 
 
@@ -38,7 +38,7 @@ def process_lidar(occupancy_map, size_area_world, resolution, tile_map_size, lid
     cos_rays = np.cos(lidar_angles + ori)
     sin_rays = np.sin(lidar_angles + ori)
 
-    max_range = MAX_RANGE_LIDAR_SENSOR * 0.9
+    max_range = MAX_RANGE_LIDAR_SENSOR * 0.7   # reduce the range to about semantic's range
 
     # For empty zones
     # points_x and point_y contains the border of detected empty zone
@@ -67,8 +67,7 @@ def process_lidar(occupancy_map, size_area_world, resolution, tile_map_size, lid
     gridFun.add_points(occupancy_map, size_area_world, resolution, tile_map_size, points_x, points_y, OBSTACLE_ZONE_VALUE)
 
     # the current position of the drone is free !
-    gridFun.add_points(occupancy_map, size_area_world, resolution, tile_map_size, pos[0], pos[1],
-                       FREE_ZONE_VALUE)
+    gridFun.add_points(occupancy_map, size_area_world, resolution, tile_map_size, pos[0], pos[1], FREE_ZONE_VALUE)
 
     # threshold values
     occupancy_map = np.clip(occupancy_map, THRESHOLD_MIN, THRESHOLD_MAX)

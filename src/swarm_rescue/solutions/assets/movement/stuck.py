@@ -19,7 +19,7 @@ def stuck_manager(timers, speed, entity_map, path):
         if timers['stuck'] >= STUCK_WAIT and len(path) > PATH_TILE_TO_CHANGE:
             entity_map[path[PATH_TILE_TO_CHANGE][0], path[PATH_TILE_TO_CHANGE][1]] = Entity.WALL.value
             timers['stuck'] = 0
-            print(" I'm stuck !")
+            # print(" I'm stuck !")
 
     else:
         timers['stuck'] = 0

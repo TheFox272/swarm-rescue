@@ -4,7 +4,7 @@ import numba as nb
 
 from solutions.assets.communication.comm_declarations import MsgType
 
-from swarm_rescue.solutions.assets.behavior.think import VICTIM_RESCUED_NB
+from swarm_rescue.solutions.assets.behavior.think import VICTIM_RESCUED_NB, NOGPS_WAYPOINT
 from swarm_rescue.solutions.assets.mapping.entity import max_entity
 from swarm_rescue.solutions.assets.mapping.semanticMapping import VICTIM_DETECTION_MARGIN
 
@@ -22,7 +22,7 @@ VICTIM_MIN_DIST = VICTIM_DETECTION_MARGIN
 
 def intersect_waypoints(waypoints: np.ndarray, other_waypoints: np.ndarray):
     waypoints[other_waypoints == 0] = 0
-
+    # waypoints[(waypoints != 0) & (other_waypoints == NOGPS_WAYPOINT)] = NOGPS_WAYPOINT
 
 def intersect_bases(bases: List, other_bases: List):
     set_bases = set(map(tuple, bases))
@@ -41,7 +41,7 @@ def intersect_entity(entity_map: np.ndarray, other_entity_map: np.ndarray, tile_
             entity_map[i, j] = max_entity(entity_map[i, j], other_entity_map[i, j])
 
 
-def intersect_victims(victims: List, other_victims: List, drone_id: np.uint8):
+def intersect_victims(victims: List, other_victims: List, drone_id: np.int32):
     abandon_victim = False
 
     # We'll use arrays to be faster
