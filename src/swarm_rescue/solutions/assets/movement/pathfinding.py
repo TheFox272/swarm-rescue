@@ -18,7 +18,7 @@ Constant used in :py:func:`compute_path_map`, corresponding to the base weight o
 :type: int
 :domain: [:py:data:`CLOUD_BONUS` + 1, inf]
 """
-WALL_WEIGHT = BASIC_WEIGHT * 16
+WALL_WEIGHT = BASIC_WEIGHT * 12
 """
 Constant used in :py:func:`f_runoff`, corresponding to the additional weight that the drone will put on a wall in his 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`. In other words, how much the drone will avoid the surroundings of a wall.
@@ -52,7 +52,7 @@ instead of always taking the same paths.
 :domain: [0, :py:data:`BASE_WEIGHT` - 1]
 """
 SAFE_PRUDENCE = BASIC_WEIGHT * 16
-PRUDENCE = BASIC_WEIGHT * 16
+PRUDENCE = BASIC_WEIGHT * 8
 """
 Constant used in :py:func:`compute_path_map`, corresponding to the malus weight of the cloud tiles of 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map` when the drone is carrying a victim. It avoids the drone from going into a 
@@ -69,7 +69,7 @@ Constant used in :py:func:`compute_path_map`, corresponding to the malus weight 
 :type: int
 :domain: [0, inf]
 """
-KILL_RELUCTANCE = BASIC_WEIGHT * 8
+KILL_RELUCTANCE = BASIC_WEIGHT * 64
 """
 Constant used in :py:func:`compute_path_map`, corresponding to the malus weight of the kill zone tiles of 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`.
@@ -77,7 +77,9 @@ Constant used in :py:func:`compute_path_map`, corresponding to the malus weight 
 :type: int
 :domain: [0, inf]
 """
-VICTIM_ZONE = 1
+KILL_RUNOFF = 5
+
+VICTIM_ZONE = 2
 DRONE_ZONE = 1
 
 NO_GO_ENTITIES = (Entity.WALL.value, Entity.BASE.value, Entity.KILL.value)
@@ -132,6 +134,7 @@ def compute_path_map(tile_map_size: Tuple[np.int32, np.int32], occupancy_map: np
                 path_map[x, y] = 0
                 runoff = WALL_RUNOFF
                 if entity_map[x, y] == Entity.KILL.value:
+                    runoff = KILL_RUNOFF
                     weight = KILL_RELUCTANCE
                 else:
                     weight = WALL_WEIGHT
