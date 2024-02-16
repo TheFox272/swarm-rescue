@@ -18,7 +18,7 @@ Constant used in :py:func:`compute_path_map`, corresponding to the base weight o
 :type: int
 :domain: [:py:data:`CLOUD_BONUS` + 1, inf]
 """
-WALL_WEIGHT = BASIC_WEIGHT * 16
+WALL_WEIGHT = BASIC_WEIGHT * 12
 """
 Constant used in :py:func:`f_runoff`, corresponding to the additional weight that the drone will put on a wall in his 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`. In other words, how much the drone will avoid the surroundings of a wall.
@@ -51,8 +51,8 @@ instead of always taking the same paths.
 :type: int
 :domain: [0, :py:data:`BASE_WEIGHT` - 1]
 """
-SAFE_PRUDENCE = BASIC_WEIGHT * 16
-PRUDENCE = BASIC_WEIGHT * 16
+SAFE_PRUDENCE = BASIC_WEIGHT * 64
+PRUDENCE = BASIC_WEIGHT * 64
 """
 Constant used in :py:func:`compute_path_map`, corresponding to the malus weight of the cloud tiles of 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map` when the drone is carrying a victim. It avoids the drone from going into a 
@@ -69,7 +69,7 @@ Constant used in :py:func:`compute_path_map`, corresponding to the malus weight 
 :type: int
 :domain: [0, inf]
 """
-KILL_RELUCTANCE = BASIC_WEIGHT * 8
+KILL_RELUCTANCE = BASIC_WEIGHT * 64
 """
 Constant used in :py:func:`compute_path_map`, corresponding to the malus weight of the kill zone tiles of 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`.
@@ -77,13 +77,15 @@ Constant used in :py:func:`compute_path_map`, corresponding to the malus weight 
 :type: int
 :domain: [0, inf]
 """
-VICTIM_ZONE = 1
+KILL_RUNOFF = 5
+
+VICTIM_ZONE = 2
 DRONE_ZONE = 1
 
 NO_GO_ENTITIES = (Entity.WALL.value, Entity.BASE.value, Entity.KILL.value)
 # endregion
 
-f_runoff = nb.njit(lambda distance, weight, runoff: np.int32(round(BASIC_WEIGHT + weight * (1 - distance / (runoff+1.0)), 0)))
+f_runoff = nb.njit(lambda distance, weight, runoff: np.int32(round(BASIC_WEIGHT + weight * (1 - distance / (runoff + 1.0)), 0)))
 """Used to compute the impact of a wall on :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`. Used in 
 :py:func:`compute_path_map`.
 """
@@ -91,7 +93,7 @@ f_runoff = nb.njit(lambda distance, weight, runoff: np.int32(round(BASIC_WEIGHT 
 
 @nb.njit
 def is_drone_close(x, y, detected_drones):
-    distances = np.sqrt((x - detected_drones[:, 0])**2 + (y - detected_drones[:, 1])**2)
+    distances = np.sqrt((x - detected_drones[:, 0]) ** 2 + (y - detected_drones[:, 1]) ** 2)
     return np.any(distances <= CLOSE_DRONE_DISTANCE)
 
 
@@ -132,6 +134,7 @@ def compute_path_map(tile_map_size: Tuple[np.int32, np.int32], occupancy_map: np
                 path_map[x, y] = 0
                 runoff = WALL_RUNOFF
                 if entity_map[x, y] == Entity.KILL.value:
+                    runoff = KILL_RUNOFF
                     weight = KILL_RELUCTANCE
                 else:
                     weight = WALL_WEIGHT
@@ -140,8 +143,6 @@ def compute_path_map(tile_map_size: Tuple[np.int32, np.int32], occupancy_map: np
                 add_entity(x, y, Entity.VOID.value, entity_map, tile_map_size, DRONE_ZONE)
                 runoff = DRONE_RUNOFF
                 weight = DRONE_RELUCTANCE
-                # if state != State.SAVE.value:
-                #     weight /= BASIC_WEIGHT
                 weight_propagate(x, y, runoff, weight, tile_map_size, path_map)
             elif path_map[x, y] != 0:
                 if entity_map[x, y] == Entity.CLOUD.value:
@@ -160,9 +161,10 @@ def compute_path_map(tile_map_size: Tuple[np.int32, np.int32], occupancy_map: np
     return path_map
 
 
-f_anticipate = nb.njit(lambda dx: np.sign(dx) * 3 * m.sqrt(dx + 1))
+f_anticipate = nb.njit(lambda dx: np.sign(dx) * 2.5 * m.sqrt(dx + 1))
 
 
+@nb.njit
 def anticipate_pos(tile_pos, speed, tile_map_size, entity_map):
     """Deduces where the drone will soon be from his estimated position and speed
 

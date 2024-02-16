@@ -60,8 +60,8 @@ def process_semantic(semantic_values, pos, tile_map_size, victims, state, bases,
                 occupancy_map[tile_target_x, tile_target_y] = 1  # WIP
 
             elif data.entity_type.value == DroneSemanticSensor.TypeEntity.RESCUE_CENTER.value:
-                if min([m.dist(base, [tile_target_x, tile_target_y]) for base in bases] + [m.inf]) > BASE_DETECTION_MARGIN:
-                    bases.append((tile_target_x, tile_target_y))
+                if min([m.dist(base[:2], [tile_target_x, tile_target_y]) for base in bases] + [m.inf]) > BASE_DETECTION_MARGIN:
+                    bases.append([tile_target_x, tile_target_y, True])
                     add_entity(tile_target_x, tile_target_y, Entity.BASE.value, entity_map, tile_map_size)
                 if data.distance < distance_from_closest_base:
                     distance_from_closest_base = data.distance

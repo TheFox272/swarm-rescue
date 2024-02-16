@@ -17,6 +17,8 @@ OWN_OCCUPANCY_WEIGHT = 0.6
 :domain: [0, 1]
 """
 VICTIM_MIN_DIST = VICTIM_DETECTION_MARGIN
+
+
 # endregion
 
 
@@ -24,10 +26,20 @@ def intersect_waypoints(waypoints: np.ndarray, other_waypoints: np.ndarray):
     waypoints[other_waypoints == 0] = 0
     # waypoints[(waypoints != 0) & (other_waypoints == NOGPS_WAYPOINT)] = NOGPS_WAYPOINT
 
+
 def intersect_bases(bases: List, other_bases: List):
-    set_bases = set(map(tuple, bases))
-    set_other_bases = set(map(tuple, other_bases))
-    bases[:] = list(map(list, set_bases.union(set_other_bases)))
+    coord_set_bases = {(x, y) for x, y, _ in bases}
+    for x, y, b in other_bases:
+        if (x, y) not in coord_set_bases:
+            bases.append([x, y, b])
+            coord_set_bases.add((x, y))
+        else:
+            index = next((i for i, [ex, ey, eb] in enumerate(bases) if ex == x and ey == y), None)
+            if index is not None:
+                if bases[index][2] is not b:
+                    bases[index] = [x, y, False]
+
+    print(bases, other_bases)
 
 
 def intersect_occupancy(occupancy: np.ndarray, other_occupancy: np.ndarray):
@@ -60,7 +72,7 @@ def intersect_victims(victims: List, other_victims: List, drone_id: np.int32):
         if close_indices.size > 0:
             min_savior = other_victims_array[close_indices, 2].min()
 
-            if min_savior < savior and min_savior == VICTIM_RESCUED_NB:
+            if min_savior == VICTIM_RESCUED_NB:
                 victims_array[i, 2] = VICTIM_RESCUED_NB
                 if savior == drone_id:
                     abandon_victim = True
@@ -72,4 +84,3 @@ def intersect_victims(victims: List, other_victims: List, drone_id: np.int32):
     victims.extend(other_victims_array[remaining_indices].tolist())
 
     return abandon_victim
-

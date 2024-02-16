@@ -32,10 +32,10 @@ from swarm_rescue.solutions.assets.behavior.think import compute_behavior, is_de
 
 # region local constants
 SHARE_WAYPOINTS_WAIT = 16
-SHARE_BASES_WAIT = 64  # must be high
+SHARE_BASES_WAIT = 32  # must be high
 SHARE_OCCUPANCY_WAIT = 8
-SHARE_ENTITY_WAIT = 4
-SHARE_VICTIMS_WAIT = 4
+SHARE_ENTITY_WAIT = 3
+SHARE_VICTIMS_WAIT = 3
 CONFIDENCE_RADIUS = 3
 SAFE_CONFIDENCE_RADIUS = 3
 
@@ -129,6 +129,7 @@ class MyFirstDrone(DroneAbstract):
         self.detected_drones = list()
         self.detected_drones_traces = dict()
         self.silent_drones = dict()
+        self.dead_drones = list()
         # endregion
         # region behavior init
         self.state = State.BOOT.value
@@ -146,7 +147,7 @@ class MyFirstDrone(DroneAbstract):
         self.victims = list()
         self.distance_from_closest_victim = m.inf
         self.distance_from_closest_base = m.inf
-        self.distance_from_closest_drone = m.inf
+        self.distance_from_closest_alive_drone = m.inf
         self.victim_angle = np.array([0], dtype=np.float32)
         self.timers = {"waypoints_scan": 0, "victim_wait": 0, "believe_wait": 0, "base_scan": 0, "noGPS": 0, "stuck": 0}
         # endregion
@@ -206,7 +207,7 @@ class MyFirstDrone(DroneAbstract):
 
     @property
     def in_noCOMzone(self):
-        return not m.isinf(self.distance_from_closest_drone) and len(self.alive_received) == 0
+        return not m.isinf(self.distance_from_closest_alive_drone) and len(self.alive_received) == 0
 
     @property
     def in_SAFEzone(self):
@@ -252,7 +253,7 @@ class MyFirstDrone(DroneAbstract):
 
         self.to_send = []
         self.alive_received = []
-        if self.state != State.DONE.value and len(self.communicator.received_messages) != 0 and self.timers['noGPS'] < noGPS_time_limit:
+        if self.state != State.DONE.value and self.timers['noGPS'] < noGPS_time_limit:
             if self.in_noGPSzone:
                 self.timers['noGPS'] += 1
             else:
@@ -263,6 +264,10 @@ class MyFirstDrone(DroneAbstract):
             self.comm_timers["share_entity"] += 1
             if len(self.victims) != 0:
                 self.comm_timers["share_victims"] += 1
+        elif self.timers['noGPS'] >= noGPS_time_limit:
+            self.comm_timers["share_waypoints"] -= SHARE_WAYPOINTS_WAIT
+            self.comm_timers["share_occupancy"] -= SHARE_OCCUPANCY_WAIT
+            self.comm_timers["share_entity"] -= SHARE_ENTITY_WAIT
 
         self.to_send.append(create_msg(MsgType.ALIVE.value, 'all', [self.drone_id, self.pos[0], self.pos[1]], self.drone_id, self.msg_sent))
         if self.comm_timers["share_waypoints"] > SHARE_WAYPOINTS_WAIT:
@@ -270,7 +275,7 @@ class MyFirstDrone(DroneAbstract):
             self.comm_timers["share_waypoints"] = 0
         if self.comm_timers["share_bases"] > SHARE_BASES_WAIT:
             self.to_send.append(create_msg(MsgType.SHARE_BASES.value, 'all', self.bases, self.drone_id, self.msg_sent))
-            # self.comm_timers["share_bases"] = 0
+            self.comm_timers["share_bases"] = 0
         if self.comm_timers["share_occupancy"] > SHARE_OCCUPANCY_WAIT:
             self.to_send.append(create_msg(MsgType.SHARE_OCCUPANCY_MAP.value, 'all', self.occupancy_map, self.drone_id, self.msg_sent))
             self.comm_timers["share_occupancy"] = 0
@@ -291,6 +296,8 @@ class MyFirstDrone(DroneAbstract):
         How the drone moves
         """
         if self.is_dead or self.state == State.DONE.value:
+            if self.is_dead:
+                add_entity(self.tile_pos[0], self.tile_pos[1], Entity.KILL.value, self.entity_map, self.tile_map_size, SAFE_CONFIDENCE_RADIUS)
             return None
 
         self.slowdown = False
@@ -299,9 +306,9 @@ class MyFirstDrone(DroneAbstract):
                                            self.pos[:2], self.pos[2])
 
         (self.distance_from_closest_victim, self.distance_from_closest_base,
-         self.distance_from_closest_drone) = process_semantic(self.semantic_values(), self.pos, self.tile_map_size, self.victims, self.state, self.bases, self.entity_map,
-                                                              self.map_size, self.occupancy_map, self.victim_angle, self.detected_drones, self.detected_drones_traces,
-                                                              self.in_noCOMzone)
+         self.distance_from_closest_alive_drone) = process_semantic(self.semantic_values(), self.pos, self.tile_map_size, self.victims, self.state, self.bases, self.entity_map,
+                                                                    self.map_size, self.occupancy_map, self.victim_angle, self.detected_drones, self.detected_drones_traces,
+                                                                    self.in_noCOMzone, self.dead_drones)
 
         if self.in_SAFEzone and self.distance_from_closest_base > NO_SAFE_ON_BASE_DISTANCE:
             add_entity(self.tile_pos[0], self.tile_pos[1], Entity.SAFE.value, self.entity_map, self.tile_map_size, SAFE_CONFIDENCE_RADIUS)
@@ -312,10 +319,10 @@ class MyFirstDrone(DroneAbstract):
             if self.in_noCOMzone:
                 add_entity(self.tile_pos[0], self.tile_pos[1], Entity.NOCOM.value, self.entity_map, self.tile_map_size, CONFIDENCE_RADIUS)
 
-        stuck_manager(self.timers, self.speed, self.entity_map, self.path)
+        stuck_manager(self.timers, self.speed, self.entity_map, self.path, self.tile_map_size, self.occupancy_map)
 
-        if not self.in_noGPSzone and not self.in_noCOMzone:
-            detect_kills(self.detected_drones, self.alive_received, self.silent_drones, self.entity_map, self.tile_map_size)
+        if self.timers['noGPS'] < noGPS_time_limit:
+            detect_kills(self.detected_drones, self.alive_received, self.silent_drones, self.dead_drones, self.entity_map, self.tile_map_size)
 
         detected_drones_traces_array = np.asarray(list(self.detected_drones_traces.keys()), dtype=np.float32)
         detected_drones_traces_array = detected_drones_traces_array.reshape(-1, 2)

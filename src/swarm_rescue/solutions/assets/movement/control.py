@@ -66,6 +66,10 @@ def signed_angle(a: float) -> float:
         return a
 
 
+f_slower_if_shorter = nb.njit(lambda x: x + 10 * m.exp(-x / 6))
+
+
+@nb.njit
 def first_weighted_avg(nList: List[float], n: np.int32) -> float:
     """Computes the weighted average of n points, the first elements being the heaviest
 
@@ -79,11 +83,11 @@ def first_weighted_avg(nList: List[float], n: np.int32) -> float:
     res = 0
     for i in range(n):
         res += nList[i] * (n - i)
-    res /= n * (n + 1) / 2
+    res /= f_slower_if_shorter(n * (n + 1) / 2)
     return res
 
 
-f_slow = nb.njit(lambda weight: 1.9 - 1.9 / (weight + 1))
+f_slow = nb.njit(lambda weight: 2 - 2 / (weight + 1))
 
 
 def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos: np.ndarray, state: State, victim_angle: np.ndarray, distance_from_closest_base, slowdown: bool) \
