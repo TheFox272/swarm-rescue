@@ -1,0 +1,3 @@
+management of self.base :
+  - right now it won't delete a base even if it doesn't see it. Fix it ! And really no need to share bases
+
