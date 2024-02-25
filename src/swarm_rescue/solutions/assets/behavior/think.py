@@ -283,21 +283,20 @@ def compute_behavior(drone_id, target, target_indication, tile_pos, path, speed,
 
         if not target_indication["base"] and got_victim:
             target_indication["base"] = True
-
-            if is_defined(target_indication["victim"]):  # only happens when just getting hist victim
-                timers["victim_wait"] = 0
-                victims_array = np.asarray(victims, dtype=np.int32)
-                best_victim_index = closest_victim(target, victims_array)
-                victims[target_indication["victim"]][2] = VICTIM_WAITING_NB
-                target_indication["victim"] = undefined_index
-                victims[best_victim_index][2] = VICTIM_RESCUED_NB
-
             target_base = next_base(tile_pos, speed, bases, tile_map_size, path_map, distance_from_closest_base)
             if target_base is None:
                 target_indication["victim"] = undefined_index
                 undefine_target(target)
                 return State.EXPLORE.value  # TODO : change that ?
             else:
+                if is_defined(target_indication["victim"]):  # only happens when just getting hist victim
+                    timers["victim_wait"] = 0
+                    victims_array = np.asarray(victims, dtype=np.int32)
+                    best_victim_index = closest_victim(target, victims_array)
+                    victims[target_indication["victim"]][2] = VICTIM_WAITING_NB
+                    target_indication["victim"] = undefined_index
+                    victims[best_victim_index][2] = VICTIM_RESCUED_NB
+
                 target[:2] = tuple(target_base)
                 return State.SAVE.value
 

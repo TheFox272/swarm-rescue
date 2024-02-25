@@ -87,7 +87,7 @@ def first_weighted_avg(nList: List[float], n: np.int32) -> float:
     return res
 
 
-f_slow = nb.njit(lambda weight: 1.8 - 1.8 / (weight + 1))
+f_slow = nb.njit(lambda weight: 1.9 - 1.9 / (weight + 1))
 
 
 def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos: np.ndarray, state: State, victim_angle: np.ndarray, distance_from_closest_base, slowdown: bool) \

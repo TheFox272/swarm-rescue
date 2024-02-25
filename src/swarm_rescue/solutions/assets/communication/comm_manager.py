@@ -5,9 +5,11 @@ from typing import List, Tuple
 
 from swarm_rescue.solutions.assets.communication.share import intersect_waypoints, intersect_bases, intersect_occupancy, intersect_entity, intersect_victims
 from swarm_rescue.solutions.assets.behavior.think import MAX_BASES_SIZE
+from swarm_rescue.solutions.assets.mapping.mapping_constants import TILE_SIZE
 
 # region local constants
 MAX_MESSAGE_MEMORY = 20
+DONE_DRONE_ID = -1
 # endregion
 
 
@@ -31,7 +33,7 @@ def create_msg(msg_type: MsgType, destination, msg_data, drone_id: int, msg_id: 
 
 
 def compute_received_com(received_messages, to_send, alive_received, processed_msg, abandon_victim, id, waypoints, bases, occupancy_map, entity_map, tile_map_size, victims,
-                         in_noGPSzone: bool):
+                         in_noGPSzone: bool, dead_drones):
     """
     Compute the messages to send and the messages to proceed
     Args:
@@ -70,13 +72,14 @@ def compute_received_com(received_messages, to_send, alive_received, processed_m
                     to_send.append(msg_content)
 
             if dest_id == 'all' or dest_id == id:
-                process_message(msg_type, msg_content['data'], alive_received, abandon_victim, id, waypoints, bases, occupancy_map, entity_map, tile_map_size, victims, in_noGPSzone)
+                process_message(msg_type, msg_content['data'], alive_received, abandon_victim, id, waypoints, bases, occupancy_map, entity_map, tile_map_size, victims,
+                                in_noGPSzone, dead_drones)
                 processed_msg[sender_id] = processed_msg[sender_id][-MAX_MESSAGE_MEMORY:] + [msg_content['msg_id']]
 
     return to_send
 
 
-def process_message(msg_type, data, alive_received, abandon_victim, id, waypoints, bases, occupancy_map, entity_map, tile_map_size, victims, in_noGPSzone):
+def process_message(msg_type, data, alive_received, abandon_victim, id, waypoints, bases, occupancy_map, entity_map, tile_map_size, victims, in_noGPSzone, dead_drones):
     """
     Process the message
     Args:
@@ -90,6 +93,10 @@ def process_message(msg_type, data, alive_received, abandon_victim, id, waypoint
     match msg_type:
         case MsgType.ALIVE.value:
             alive_received.append(data)
+            if data[0] == DONE_DRONE_ID:
+                x = int(data[1] * TILE_SIZE)
+                y = int(data[2] * TILE_SIZE)
+                dead_drones.append((x, y))
 
         case MsgType.SHARE_WAYPOINTS.value:
             intersect_waypoints(waypoints, data)

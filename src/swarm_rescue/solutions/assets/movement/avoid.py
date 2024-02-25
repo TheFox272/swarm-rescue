@@ -13,7 +13,7 @@ from swarm_rescue.solutions.assets.movement.pathfinding import DRONE_RUNOFF
 STUCK_SPEED = 0.6
 STUCK_WAIT = 15
 PATH_TILE_TO_CHANGE = 2
-
+MAX_PATH_FORECAST = 6
 
 # endregion
 
@@ -38,7 +38,8 @@ def slow_down(pos, path, detected_drones):
 
     detected_drones_array = np.asarray(detected_drones, dtype=np.float32)
     detected_drones_array = detected_drones_array.reshape(-1, 2)
-    path_array = np.asarray(path, dtype=np.float32)
+    forecast = min(len(path), MAX_PATH_FORECAST)
+    path_array = np.asarray(path[:forecast], dtype=np.float32)
     path_array *= TILE_SIZE
     path_array = path_array.reshape(-1, 2)
 

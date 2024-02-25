@@ -51,8 +51,8 @@ instead of always taking the same paths.
 :type: int
 :domain: [0, :py:data:`BASE_WEIGHT` - 1]
 """
-SAFE_PRUDENCE = BASIC_WEIGHT * 16
-PRUDENCE = BASIC_WEIGHT * 8
+SAFE_PRUDENCE = BASIC_WEIGHT * 64
+PRUDENCE = BASIC_WEIGHT * 64
 """
 Constant used in :py:func:`compute_path_map`, corresponding to the malus weight of the cloud tiles of 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map` when the drone is carrying a victim. It avoids the drone from going into a 

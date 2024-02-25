@@ -4,6 +4,7 @@ from enum import Enum
 class MsgType(Enum):
     """Message types"""
     # !! All MsgType names must be in uppercase (for good practice) !!
+    # IS_DONE = -1
     ALIVE = 0
     SHARE_WAYPOINTS = 1
     SHARE_BASES = 2
