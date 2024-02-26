@@ -69,7 +69,7 @@ def compare_entity(entity: np.int32, other_entity: np.int32):
         elif other_entity == Entity.BASE.value:
             return False
         elif other_entity == Entity.KILL.value:
-            return False
+            return True
         elif other_entity == Entity.SAFE.value:
             return True
     elif entity == Entity.NOCOM.value:
@@ -104,7 +104,7 @@ def compare_entity(entity: np.int32, other_entity: np.int32):
         elif other_entity == Entity.WALL.value:
             return False
         elif other_entity == Entity.NOGPS.value:
-            return True
+            return False
         elif other_entity == Entity.NOCOM.value:
             return False
         elif other_entity == Entity.BASE.value:

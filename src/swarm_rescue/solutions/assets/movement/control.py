@@ -87,7 +87,7 @@ def first_weighted_avg(nList: List[float], n: np.int32) -> float:
     return res
 
 
-f_slow = nb.njit(lambda weight: 1.9 - 1.9 / (weight + 1))
+f_slow = nb.njit(lambda weight: 1.7 - 1.7 / (weight + 1))
 
 
 def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos: np.ndarray, state: State, victim_angle: np.ndarray, distance_from_closest_base, slowdown: bool) \
@@ -144,8 +144,8 @@ def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos:
         command["rotation"] = min(max(-1, rot_diff * K_ROT), 1)
 
         if state == State.SAVE.value and distance_from_closest_base < DROP_DISTANCE:
-            command["forward"] /= 4
-            command["lateral"] /= 4
+            command["forward"] /= 3
+            command["lateral"] /= 3
         elif slowdown:
             command["forward"] *= -1
             command["lateral"] *= -1

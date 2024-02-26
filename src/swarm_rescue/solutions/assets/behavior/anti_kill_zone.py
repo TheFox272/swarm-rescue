@@ -3,11 +3,12 @@ import numpy as np
 import math as m
 from typing import List, Tuple
 
+from swarm_rescue.spg_overlay.utils.constants import MAX_RANGE_SEMANTIC_SENSOR
 from swarm_rescue.solutions.assets.mapping.entity import add_entity, Entity
 from swarm_rescue.solutions.assets.mapping.mapping_constants import INV_TILE_SIZE, DRONE_RADIUS
 
 # region local constants
-SILENT_FORGET_FACTOR = 4  # the higher, the longer it takes to forget. Must be > 1
+SILENT_FORGET_FACTOR = 8  # the higher, the longer it takes to forget. Must be > 1
 CLOSE_DRONE_DISTANCE = DRONE_RADIUS * 2.2
 DEAD_THRESHOLD = 10
 DEAD_THRESHOLD *= SILENT_FORGET_FACTOR - 1
@@ -16,16 +17,21 @@ NO_DEAD_RADIUS = 3
 # endregion
 
 
-def detect_kills(detected_drones, alive_received, silent_drones, dead_drones, entity_map, tile_map_size):
+def detect_kills(detected_drones, alive_received, silent_drones, dead_drones, entity_map, tile_map_size, pos):
 
-    new_silent_drones = dict()
-    for (x, y), count in silent_drones.items():
-        new_count = count - 1
-        new_silent_drones[(x, y)] = new_count
-        if new_count == 0 and (x, y) in dead_drones:
-            dead_drones.remove((x, y))
+    new_silent_drones = {(x, y): count - 1 for (x, y), count in silent_drones.items() if count > 1}
     silent_drones.clear()
     silent_drones.update(new_silent_drones)
+
+    # real_dead_drones = list()
+    # for dead in [dead for dead in dead_drones if m.dist(pos, dead) <= 0.7 * MAX_RANGE_SEMANTIC_SENSOR]:
+    #     if any(m.dist(dead, detected) <= CLOSE_DRONE_DISTANCE for detected in detected_drones):
+    #         real_dead_drones.append(dead)
+    #     else:
+    #         x_tile = max(0, min(int(dead[0] * INV_TILE_SIZE), tile_map_size[0] - 1))
+    #         y_tile = max(0, min(int(dead[1] * INV_TILE_SIZE), tile_map_size[1] - 1))
+    #         add_entity(x_tile, y_tile, Entity.NOCOM.value, entity_map, tile_map_size, NO_DEAD_RADIUS)
+    # dead_drones[:] = real_dead_drones
 
     for drone_coord in detected_drones:
         x, y = drone_coord

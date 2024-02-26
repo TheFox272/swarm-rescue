@@ -19,44 +19,50 @@ VICTIM_RESCUED_NB = -2
 VICTIM_WAITING_NB = -1
 
 WAYPOINTS_SCAN = 8
-BASE_SCAN = 32
+BASE_SCAN = 16
 BELIEVE_WAIT = 2
 VICTIM_WAIT = 4
 
 EXPLORED_WP_VALUE = 0
 
-MAX_BASES_SIZE = 12
+MAX_BASES_SIZE = 120
 
 NOGPS_WAYPOINT = -1
-
+CLOSE_TO_BASE_PATH_LEN = 6
 
 # endregion
 
 
 def next_waypoint(tile_pos, drone_speed, waypoints, waypoints_dims, tile_map_size, path_map, in_noGPSzone, entity_map):
-    if np.any(waypoints == 2):
-        exigence = 2
-    elif np.any(waypoints == 1):
-        exigence = 1
-    # elif np.any(waypoints == NOGPS_WAYPOINT):
-    #     exigence = NOGPS_WAYPOINT
-    else:
-        return None
-
-    old_pos_value = path_map[tile_pos[0], tile_pos[1]]
-    path_map[tile_pos[0], tile_pos[1]] = 1
+    anticipated_graph = tcod.path.SimpleGraph(cost=path_map, cardinal=1, diagonal=0)
+    anticipated_pf = tcod.path.Pathfinder(anticipated_graph)
     graph = tcod.path.SimpleGraph(cost=path_map, cardinal=1, diagonal=0)
     pf = tcod.path.Pathfinder(graph)
+
     anticipated_pos = anticipate_pos(tile_pos, drone_speed, tile_map_size, entity_map)
-    pf.add_root(anticipated_pos)
+
+    anticipated_pf.add_root(anticipated_pos)
+    pf.add_root(tile_pos[:2])
+
     best_waypoint = None
     best_distance = m.inf
+    best_exigence = 1
 
     for i in np.arange(waypoints_dims[0]):
         for j in np.arange(waypoints_dims[1]):
-            if waypoints[i, j] == exigence:
+            if waypoints[i, j] >= best_exigence:
                 x, y = waypoint_pos(i, j)
-                distance = len(pf.path_to((x, y)))
+
+                old_pos_value = path_map[anticipated_pos[0], anticipated_pos[1]]
+                path_map[anticipated_pos[0], anticipated_pos[1]] = 1
+                distance = len(anticipated_pf.path_to((x, y)))
+                path_map[anticipated_pos[0], anticipated_pos[1]] = old_pos_value
+                if distance == 1:  # no path found
+                    old_pos_value = path_map[tile_pos[0], tile_pos[1]]
+                    path_map[tile_pos[0], tile_pos[1]] = 1
+                    distance = len(pf.path_to((x, y)))
+                    path_map[tile_pos[0], tile_pos[1]] = old_pos_value
+
                 if distance <= EXPLORED_PATH_DISTANCE:
                     if in_noGPSzone:
                         waypoints[i, j] = NOGPS_WAYPOINT
@@ -65,13 +71,8 @@ def next_waypoint(tile_pos, drone_speed, waypoints, waypoints_dims, tile_map_siz
                 elif distance < best_distance:
                     best_waypoint = (i, j)
                     best_distance = distance
+                    best_exigence = waypoints[i, j]
 
-    path_map[tile_pos[0], tile_pos[1]] = old_pos_value
-
-    if best_waypoint is None and (exigence == 2 or exigence == 1):
-        return next_waypoint(tile_pos, drone_speed, waypoints, waypoints_dims, tile_map_size, path_map, in_noGPSzone, entity_map)
-    # if best_waypoint is None:
-    #     pass
     return best_waypoint
 
 
@@ -93,18 +94,23 @@ def next_victim(tile_pos, drone_speed, victims, tile_map_size, entity_map):
     if len(victims) == 0:
         return None
 
-    drone_pos = anticipate_pos(tile_pos, drone_speed, tile_map_size, entity_map)
+    anticipated_pos = anticipate_pos(tile_pos, drone_speed, tile_map_size, entity_map)
 
     victims_array = np.asarray(victims, dtype=np.int32)
-    best_victim_index = closest_victim(drone_pos, victims_array, True)
+    best_victim_index = closest_victim(anticipated_pos, victims_array, True)
+
+    if best_victim_index is None:
+        tile_pos_array = np.asarray(tile_pos[:2], dtype=np.int32)
+        best_victim_index = closest_victim(tile_pos_array, victims_array, True)
 
     return best_victim_index
 
 
-def next_base(tile_pos, drone_speed, bases, tile_map_size, path_map, distance_from_closest_base):
+def next_base(tile_pos, drone_speed, bases, tile_map_size, path_map, distance_from_closest_base, entity_map):
     if len(bases) == 0:
         return None
 
+    anticipated_pos = anticipate_pos(tile_pos, drone_speed, tile_map_size, entity_map)
     best_distance = m.inf
     best_base = None
 
@@ -115,8 +121,14 @@ def next_base(tile_pos, drone_speed, bases, tile_map_size, path_map, distance_fr
         valid_bases = bases[MAX_BASES_SIZE:]
         max_lookup = MAX_BASES_SIZE
     for base in bases[:max_lookup]:
-        distance = len(find_path(path_map, tile_pos[:2], np.asarray(base, dtype=np.int32)))
-        if distance == 1 and m.isinf(distance_from_closest_base):  # means that base is isolated by walls somehow
+        if entity_map[base[0], base[1]] != Entity.BASE.value:  # realised that it was no a base somehow
+            continue
+        path = find_path(path_map, anticipated_pos, np.asarray(base, dtype=np.int32))
+        if len(path) == 1:
+            path = find_path(path_map, tile_pos[:2], np.asarray(base, dtype=np.int32))
+        path_len = len(path)
+        distance = sum(path_map[pos[0], pos[1]] for pos in path)
+        if path_len == 1 or (path_len <= CLOSE_TO_BASE_PATH_LEN and m.isinf(distance_from_closest_base)):  # means that base is isolated by walls somehow
             continue
         elif distance < best_distance:
             best_distance = distance
@@ -283,7 +295,7 @@ def compute_behavior(drone_id, target, target_indication, tile_pos, path, speed,
 
         if not target_indication["base"] and got_victim:
             target_indication["base"] = True
-            target_base = next_base(tile_pos, speed, bases, tile_map_size, path_map, distance_from_closest_base)
+            target_base = next_base(tile_pos, speed, bases, tile_map_size, path_map, distance_from_closest_base, entity_map)
             if target_base is None:
                 target_indication["victim"] = undefined_index
                 undefine_target(target)

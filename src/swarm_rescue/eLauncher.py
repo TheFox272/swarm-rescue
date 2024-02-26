@@ -24,7 +24,7 @@ class MyDrone(MyFirstDrone):
 
 
 # Map selection
-class MyMap(MyMapMedium01):
+class MyMap(MyMapFinal):
     pass
 
 
@@ -32,15 +32,16 @@ def main():
     my_map = MyMap(zones_config=[ZoneType.KILL_ZONE, ZoneType.NO_GPS_ZONE, ZoneType.NO_COM_ZONE])
     my_map._real_time_limit = 1000000000
     my_map._time_step_limit = 1000000000
+    # my_map._number_drones = 2
 
-    # my_map._number_drones = 1
     playground = my_map.construct_playground(drone_type=MyDrone)
 
     gui = GuiSR(playground=playground,
                 the_map=my_map,
                 use_keyboard=False,
                 use_mouse_measure=True,
-                enable_visu_noises=False
+                enable_visu_noises=False,
+                filename_video_capture="test_final.mp4v"
                 )
 
     # this function below is a blocking function until the round is finished

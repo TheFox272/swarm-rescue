@@ -3,7 +3,7 @@ import os
 import sys
 from typing import Optional
 
-from time import time # to test
+from time import time  # to test
 
 import arcade  # for drawing
 import numpy as np
@@ -31,19 +31,21 @@ from swarm_rescue.solutions.assets.movement.pathfinding import BASIC_WEIGHT, WAL
 from swarm_rescue.solutions.assets.behavior.think import compute_behavior, is_defined, undefined_index, undefined_target, undefined_waypoint, target_is_defined, NOGPS_WAYPOINT
 
 # region local constants
-SHARE_WAYPOINTS_WAIT = 16
-SHARE_BASES_WAIT = 512  # must be high
-SHARE_OCCUPANCY_WAIT = 8
-SHARE_ENTITY_WAIT = 3
-SHARE_VICTIMS_WAIT = 3
+SHARE_WAYPOINTS_WAIT = 64
+SHARE_BASES_WAIT = 16
+SHARE_OCCUPANCY_WAIT = 16
+SHARE_ENTITY_WAIT = 16
+SHARE_VICTIMS_WAIT = 4
 CONFIDENCE_RADIUS = 3
 SAFE_CONFIDENCE_RADIUS = 3
 
 NO_SAFE_ON_BASE_DISTANCE = TILE_SIZE * 4
 
-noGPS_time_limit = 30
+noGPS_time_limit = 80
+
 
 # endregion
+
 
 class MyFirstDrone(DroneAbstract):
     def __init__(self,
@@ -85,7 +87,7 @@ class MyFirstDrone(DroneAbstract):
         
         :type: ndarray of float32
         """
-        self.path_map = np.ones(self.tile_map_size, dtype=np.int32)
+        self.path_map = np.ones(self.tile_map_size, dtype=np.int64)
         """
         The array, mainly computed from :py:attr:`occupancy_map`, that the drone uses to find its path. A number n on a tile means that this tile costs n to go 
         through.
@@ -175,7 +177,7 @@ class MyFirstDrone(DroneAbstract):
         
         :type: List[List[int]]
         """
-        self.comm_timers = {"share_waypoints": 0, "share_bases": int(SHARE_BASES_WAIT * 0.8), "share_occupancy": 0, "share_entity": 0, "share_victims": 0}
+        self.comm_timers = {"share_waypoints": 0, "share_bases": 0, "share_occupancy": 0, "share_entity": 0, "share_victims": 0}
         # we add a small difference in the transmission timers so that every drone does not share its map at the same time, allowing their info to spread
         self.comm_timers["share_waypoints"] = (self.comm_timers["share_waypoints"] + self.drone_id) % SHARE_WAYPOINTS_WAIT
         self.comm_timers["share_bases"] = (self.comm_timers["share_bases"] + self.drone_id) % SHARE_BASES_WAIT
@@ -254,13 +256,14 @@ class MyFirstDrone(DroneAbstract):
         elif self.state == State.DONE.value:
             self.to_send.append(create_msg(MsgType.ALIVE.value, 'all', [DONE_DRONE_ID, self.pos[0], self.pos[1]], self.drone_id, self.msg_sent))
         else:
+            if self.in_noGPSzone:
+                self.timers['noGPS'] += 1
+            else:
+                self.timers['noGPS'] = 0
             if self.timers['noGPS'] < noGPS_time_limit:
-                if self.in_noGPSzone:
-                    self.timers['noGPS'] += 1
-                else:
-                    self.timers['noGPS'] = 0
                 self.comm_timers["share_waypoints"] += 1
-                self.comm_timers["share_bases"] += 1
+                if "share_bases" in self.comm_timers:
+                    self.comm_timers["share_bases"] += 1
                 self.comm_timers["share_occupancy"] += 1
                 self.comm_timers["share_entity"] += 1
                 if len(self.victims) != 0:
@@ -274,9 +277,9 @@ class MyFirstDrone(DroneAbstract):
             if self.comm_timers["share_waypoints"] > SHARE_WAYPOINTS_WAIT:
                 self.to_send.append(create_msg(MsgType.SHARE_WAYPOINTS.value, 'all', self.waypoints, self.drone_id, self.msg_sent))
                 self.comm_timers["share_waypoints"] = 0
-            if self.comm_timers["share_bases"] > SHARE_BASES_WAIT:
+            if "share_bases" in self.comm_timers and self.comm_timers["share_bases"] > SHARE_BASES_WAIT:
                 self.to_send.append(create_msg(MsgType.SHARE_BASES.value, 'all', self.bases, self.drone_id, self.msg_sent))
-                self.comm_timers["share_bases"] = 0
+                del self.comm_timers["share_bases"]
             if self.comm_timers["share_occupancy"] > SHARE_OCCUPANCY_WAIT:
                 self.to_send.append(create_msg(MsgType.SHARE_OCCUPANCY_MAP.value, 'all', self.occupancy_map, self.drone_id, self.msg_sent))
                 self.comm_timers["share_occupancy"] = 0
@@ -311,8 +314,11 @@ class MyFirstDrone(DroneAbstract):
                                                                     self.map_size, self.occupancy_map, self.victim_angle, self.detected_drones, self.detected_drones_traces,
                                                                     self.in_noCOMzone, self.dead_drones)
 
-        if self.in_SAFEzone and self.distance_from_closest_base > NO_SAFE_ON_BASE_DISTANCE:
-            add_entity(self.tile_pos[0], self.tile_pos[1], Entity.SAFE.value, self.entity_map, self.tile_map_size, SAFE_CONFIDENCE_RADIUS)
+        if self.in_SAFEzone:
+            if self.distance_from_closest_base > NO_SAFE_ON_BASE_DISTANCE:
+                add_entity(self.tile_pos[0], self.tile_pos[1], Entity.SAFE.value, self.entity_map, self.tile_map_size, SAFE_CONFIDENCE_RADIUS)
+            else:
+                add_entity(self.tile_pos[0], self.tile_pos[1], Entity.SAFE.value, self.entity_map, self.tile_map_size, 0)
         elif self.state != State.BOOT.value:
             add_entity(self.tile_pos[0], self.tile_pos[1], Entity.VOID.value, self.entity_map, self.tile_map_size, SAFE_CONFIDENCE_RADIUS)
             if self.in_noGPSzone:
@@ -323,7 +329,7 @@ class MyFirstDrone(DroneAbstract):
         stuck_manager(self.timers, self.speed, self.entity_map, self.path)
 
         if self.timers['noGPS'] < noGPS_time_limit:
-            detect_kills(self.detected_drones, self.alive_received, self.silent_drones, self.dead_drones, self.entity_map, self.tile_map_size)
+            detect_kills(self.detected_drones, self.alive_received, self.silent_drones, self.dead_drones, self.entity_map, self.tile_map_size, self.pos[:2])
 
         detected_drones_traces_array = np.asarray(list(self.detected_drones_traces.keys()), dtype=np.float32)
         detected_drones_traces_array = detected_drones_traces_array.reshape(-1, 2)
@@ -338,7 +344,7 @@ class MyFirstDrone(DroneAbstract):
 
         if target_is_defined(self.target):
             self.path = find_path(self.path_map, self.tile_pos[:2], self.target)
-            self.slowdown = slow_down(self.pos[:2], self.path, self.detected_drones)
+            self.slowdown = slow_down(self.pos[:2], self.path, self.detected_drones, self.dead_drones)
 
         # region testing
         if self.state == State.DONE.value:
@@ -399,14 +405,14 @@ class MyFirstDrone(DroneAbstract):
                     arcade.draw_rectangle_filled(i * TILE_SIZE + TILE_SIZE / 2, j * TILE_SIZE + TILE_SIZE / 2, TILE_SIZE, TILE_SIZE, color)
 
         if self.draw_path_map:  # displays the path_map
-
+            maxi = np.amax(self.path_map)
             for i in range(0, self.tile_map_size[0]):
                 for j in range(0, self.tile_map_size[1]):
                     if self.path_map[i, j] != BASIC_WEIGHT:
                         if self.path_map[i, j] == 0:
                             color = wall_color
                         else:
-                            t = 1 - (self.path_map[i, j] - BASIC_WEIGHT) / (BASIC_WEIGHT * 16)
+                            t = 1 - (self.path_map[i, j] - BASIC_WEIGHT) / maxi
                             color = (1 - t) * np.array(gradation_color) + t * np.array(void_color)  # gradation
                         arcade.draw_rectangle_filled(i * TILE_SIZE + TILE_SIZE / 2, j * TILE_SIZE + TILE_SIZE / 2, TILE_SIZE, TILE_SIZE, color)
             # draw_map(self.occupancy_map, TILE_SIZE, self.map_size, self.pos[:2], self.pos[2])
@@ -436,4 +442,9 @@ class MyFirstDrone(DroneAbstract):
                 arcade.draw_line(0, i * TILE_SIZE, self.map_size[0], i * TILE_SIZE, arcade.color.BLACK, 1)
 
         if self.draw_id:
+            xa, ya = anticipate_pos(self.tile_pos, self.speed, self.tile_map_size, self.entity_map)
+            xa = xa * TILE_SIZE
+            ya = ya * TILE_SIZE
+            arcade.draw_text("o", xa, ya, arcade.color.RED, 15)
+
             arcade.draw_text(str(self.drone_id), x + 15, y - 15, arcade.color.BLACK, 15)  # draw id

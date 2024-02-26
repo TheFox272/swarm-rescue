@@ -17,7 +17,7 @@ MIN_SEMANTIC_DISTANCE = 50
 DRONE_DETECTION_MARGIN = CLOSE_DRONE_DISTANCE * 1.1
 DRONE_TRACE_DETECTION_MARGIN = CLOSE_DRONE_DISTANCE / 5
 CLEAR_VALUE = - THRESHOLD_MAX / 3
-DRONE_IN_MEMORY_CYCLES = 8
+DRONE_IN_MEMORY_CYCLES = 10
 
 
 # endregion
@@ -72,9 +72,9 @@ def process_semantic(semantic_values, pos, tile_map_size, victims, state, bases,
                 closest_detected = next((drone for drone in list(detected_drones_traces.keys()) if m.dist((target_x, target_y), drone) <= DRONE_TRACE_DETECTION_MARGIN),
                                         (target_x, target_y))
                 detected_drones_traces[closest_detected] = DRONE_IN_MEMORY_CYCLES * (1 + in_noCOMzone * 2)
+                if min([m.dist(drone, [target_x, target_y]) for drone in detected_drones] + [m.inf]) > DRONE_DETECTION_MARGIN:
+                    detected_drones.append((target_x, target_y))
                 if min([m.dist(drone, [target_x, target_y]) for drone in dead_drones] + [m.inf]) > DRONE_DETECTION_MARGIN:
-                    if min([m.dist(drone, [target_x, target_y]) for drone in detected_drones] + [m.inf]) > DRONE_DETECTION_MARGIN:
-                        detected_drones.append((target_x, target_y))
                     if data.distance < distance_from_closest_alive_drone and entity_map[tile_target_x, tile_target_y] != Entity.NOCOM.value:
                         distance_from_closest_alive_drone = data.distance
             clear_view(pos, target_x, target_y, occupancy_map, tile_map_size, map_size)

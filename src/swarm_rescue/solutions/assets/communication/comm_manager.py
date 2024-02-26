@@ -110,8 +110,8 @@ def process_message(msg_type, data, alive_received, abandon_victim, id, waypoint
                 intersect_occupancy(occupancy_map, data)
 
         case MsgType.SHARE_ENTITY_MAP.value:
-            if not in_noGPSzone:
-                intersect_entity(entity_map, data, tile_map_size)
+            # if not in_noGPSzone:
+            intersect_entity(entity_map, data, tile_map_size)
 
         case MsgType.SHARE_VICTIMS.value:
             if not victims:
