@@ -18,7 +18,7 @@ Constant used in :py:func:`compute_path_map`, corresponding to the base weight o
 :type: int
 :domain: [:py:data:`CLOUD_BONUS` + 1, inf]
 """
-WALL_WEIGHT = BASIC_WEIGHT * 16
+WALL_WEIGHT = BASIC_WEIGHT * 18
 """
 Constant used in :py:func:`f_runoff`, corresponding to the additional weight that the drone will put on a wall in his 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`. In other words, how much the drone will avoid the surroundings of a wall.
@@ -51,7 +51,7 @@ instead of always taking the same paths.
 :type: int
 :domain: [0, :py:data:`BASE_WEIGHT` - 1]
 """
-SAFE_PRUDENCE = BASIC_WEIGHT * 32
+SAFE_PRUDENCE = BASIC_WEIGHT * 24
 PRUDENCE = SAFE_PRUDENCE
 """
 Constant used in :py:func:`compute_path_map`, corresponding to the malus weight of the cloud tiles of 
@@ -69,7 +69,7 @@ Constant used in :py:func:`compute_path_map`, corresponding to the malus weight 
 :type: int
 :domain: [0, inf]
 """
-KILL_RELUCTANCE = BASIC_WEIGHT * 32
+KILL_RELUCTANCE = BASIC_WEIGHT * 24
 """
 Constant used in :py:func:`compute_path_map`, corresponding to the malus weight of the kill zone tiles of 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`.
@@ -77,7 +77,7 @@ Constant used in :py:func:`compute_path_map`, corresponding to the malus weight 
 :type: int
 :domain: [0, inf]
 """
-KILL_RUNOFF = 5
+KILL_RUNOFF = 5.5
 
 VICTIM_ZONE = 2
 DRONE_ZONE = 1
@@ -85,7 +85,7 @@ DRONE_ZONE = 1
 NO_GO_ENTITIES = (Entity.WALL.value, Entity.BASE.value, Entity.KILL.value)
 # endregion
 
-f_runoff = nb.njit(lambda distance, weight, runoff: np.int64(round(BASIC_WEIGHT + weight - (distance * m.sqrt(weight) / (runoff + 1))**2, 0)))
+f_runoff = nb.njit(lambda distance, weight, runoff: np.int64(round(BASIC_WEIGHT + weight - (distance * m.sqrt(weight) / (runoff + 0.5))**2, 0)))
 """Used to compute the impact of a wall on :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`. Used in 
 :py:func:`compute_path_map`.
 """
@@ -161,7 +161,7 @@ def compute_path_map(tile_map_size: Tuple[np.int32, np.int32], occupancy_map: np
     return path_map
 
 
-f_anticipate = nb.njit(lambda dx: np.sign(dx) * 8 * np.power(np.tanh(dx), 6))
+f_anticipate = nb.njit(lambda dx: np.sign(dx) * 8 * np.power(np.tanh(0.6*dx), 4))
 
 
 def anticipate_pos(tile_pos, speed, tile_map_size, entity_map):
@@ -214,7 +214,7 @@ def find_path(path_map: np.ndarray, tile_pos: np.ndarray, target_pos: np.ndarray
     path_map[target_pos[0], target_pos[1]] = old_target_value
 
     n = len(computed_path)
-    ignored_path_tiles = (0 if n in (1, 2) else 1 if n == 3 else 2)
+    ignored_path_tiles = (0 if n in (1, 2) else 1)
     return computed_path[ignored_path_tiles:]
 
 

@@ -39,9 +39,11 @@ SHARE_VICTIMS_WAIT = 4
 CONFIDENCE_RADIUS = 3
 SAFE_CONFIDENCE_RADIUS = 3
 
+DONE_PATH_LEN = 4
+
 NO_SAFE_ON_BASE_DISTANCE = TILE_SIZE * 4
 
-noGPS_time_limit = 80
+noGPS_time_limit = 76
 
 
 # endregion
@@ -59,6 +61,7 @@ class MyFirstDrone(DroneAbstract):
         self.drone_id = identifier
         # endregion
         # region pathfinding init
+        self.initial_tile_pos = np.zeros(2, dtype=np.int32)
         self.pos = np.zeros(3, dtype=np.float64)
         """
         The position vector of the drone, third term being its angle.
@@ -224,7 +227,9 @@ class MyFirstDrone(DroneAbstract):
 
     @property
     def tile_pos(self):
-        return (self.pos[0] / TILE_SIZE + 0.5).astype(np.int32), (self.pos[1] / TILE_SIZE + 0.5).astype(np.int32), self.pos[2]
+        tile_x = min(max(0, (self.pos[0] / TILE_SIZE + 0.5).astype(np.int32)), self.tile_map_size[0]-1)
+        tile_y = min(max(0, (self.pos[1] / TILE_SIZE + 0.5).astype(np.int32)), self.tile_map_size[1]-1)
+        return tile_x, tile_y, self.pos[2]
 
     def update_position(self):
         if self.odometer_values() is not None:
@@ -247,13 +252,16 @@ class MyFirstDrone(DroneAbstract):
 
     def define_message_for_all(self):
 
+        if self.is_dead:
+            anticipated_pos = anticipate_pos(self.tile_pos, self.speed, self.tile_map_size, self.entity_map)
+            add_entity(anticipated_pos[0], anticipated_pos[1], Entity.KILL.value, self.entity_map, self.tile_map_size, SAFE_CONFIDENCE_RADIUS)
+            return None
+
         self.update_position()
         self.to_send = []
         self.alive_received = []
 
-        if self.is_dead:
-            return None
-        elif self.state == State.DONE.value:
+        if self.state == State.DONE.value:
             self.to_send.append(create_msg(MsgType.ALIVE.value, 'all', [DONE_DRONE_ID, self.pos[0], self.pos[1]], self.drone_id, self.msg_sent))
         else:
             if self.in_noGPSzone:
@@ -299,9 +307,9 @@ class MyFirstDrone(DroneAbstract):
         """
         How the drone moves
         """
-        if self.is_dead or self.state == State.DONE.value:
-            if self.is_dead:
-                add_entity(self.tile_pos[0], self.tile_pos[1], Entity.KILL.value, self.entity_map, self.tile_map_size, SAFE_CONFIDENCE_RADIUS)
+        if self.is_dead:
+            return None
+        elif self.state == State.DONE.value and len(self.path) <= DONE_PATH_LEN:
             return None
 
         self.slowdown = False
@@ -337,7 +345,8 @@ class MyFirstDrone(DroneAbstract):
 
         self.state = compute_behavior(self.drone_id, self.target, self.target_indication, self.tile_pos, self.path, self.speed, self.state, self.victims,
                                       self.distance_from_closest_victim, self.bases, self.distance_from_closest_base, self.got_victim, self.waypoints, self.waypoints_dims,
-                                      self.tile_map_size, self.entity_map, self.path_map, self.timers, self.abandon_victim, self.nb_drones, self.in_noGPSzone)
+                                      self.tile_map_size, self.entity_map, self.path_map, self.timers, self.abandon_victim, self.nb_drones, self.in_noGPSzone,
+                                      self.initial_tile_pos)
         if self.abandon_victim[0]:
             # print(f"{self.drone_id}: ohoh, there is an issue with self.abandon_victim")
             self.abandon_victim[0] = False

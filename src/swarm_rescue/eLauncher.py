@@ -24,7 +24,7 @@ class MyDrone(MyFirstDrone):
 
 
 # Map selection
-class MyMap(MyMapFinal):
+class MyMap(MapTestKillZone):
     pass
 
 
@@ -41,7 +41,7 @@ def main():
                 use_keyboard=False,
                 use_mouse_measure=True,
                 enable_visu_noises=False,
-                filename_video_capture="test_final.mp4v"
+                filename_video_capture="map_final_early.mp4"
                 )
 
     # this function below is a blocking function until the round is finished

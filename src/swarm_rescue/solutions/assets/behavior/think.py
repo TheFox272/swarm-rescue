@@ -50,7 +50,8 @@ def next_waypoint(tile_pos, drone_speed, waypoints, waypoints_dims, tile_map_siz
 
     for i in np.arange(waypoints_dims[0]):
         for j in np.arange(waypoints_dims[1]):
-            if waypoints[i, j] >= best_exigence:
+            exigence = waypoints[i, j]
+            if exigence >= best_exigence:
                 x, y = waypoint_pos(i, j)
 
                 old_pos_value = path_map[anticipated_pos[0], anticipated_pos[1]]
@@ -68,10 +69,10 @@ def next_waypoint(tile_pos, drone_speed, waypoints, waypoints_dims, tile_map_siz
                         waypoints[i, j] = NOGPS_WAYPOINT
                     else:
                         waypoints[i, j] = EXPLORED_WP_VALUE
-                elif distance < best_distance:
+                elif distance < best_distance or exigence > best_exigence:
                     best_waypoint = (i, j)
                     best_distance = distance
-                    best_exigence = waypoints[i, j]
+                    best_exigence = exigence
 
     return best_waypoint
 
@@ -207,7 +208,7 @@ undefined_index = -1
 
 
 def compute_behavior(drone_id, target, target_indication, tile_pos, path, speed, state, victims, distance_from_closest_victim, bases, distance_from_closest_base,
-                     got_victim, waypoints, waypoints_dims, tile_map_size, entity_map, path_map, timers, abandon_victim, nb_drones, in_noGPSzone):
+                     got_victim, waypoints, waypoints_dims, tile_map_size, entity_map, path_map, timers, abandon_victim, nb_drones, in_noGPSzone, initial_tile_pos):
     if timers["waypoints_scan"] == WAYPOINTS_SCAN:
         timers["waypoints_scan"] = 0
         waypoints_scan(waypoints_dims, waypoints, tile_map_size, entity_map, in_noGPSzone)
@@ -215,6 +216,8 @@ def compute_behavior(drone_id, target, target_indication, tile_pos, path, speed,
         timers["waypoints_scan"] += 1
 
     if state == State.BOOT.value:
+        initial_tile_pos[0] = tile_pos[0]
+        initial_tile_pos[1] = tile_pos[1]
         zone_split(tile_map_size, tile_pos, nb_drones, drone_id, waypoints, waypoints_dims)
         return State.EXPLORE.value
 
@@ -245,7 +248,7 @@ def compute_behavior(drone_id, target, target_indication, tile_pos, path, speed,
             else:
                 target_waypoint = next_waypoint(tile_pos, speed, waypoints, waypoints_dims, tile_map_size, path_map, in_noGPSzone, entity_map)
                 if target_waypoint is None:
-                    undefine_target(target)
+                    target[:2] = initial_tile_pos[:2].copy()
                     return State.DONE.value
                 else:
                     target_indication["waypoint"] = target_waypoint

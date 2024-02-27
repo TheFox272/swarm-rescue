@@ -25,7 +25,7 @@ Constant used in :py:func:`compute_command` to compute the forward thrust comman
 :type: float
 :domain: [0, 1]
 """
-K_LAT = 0.7
+K_LAT = 0.4
 """
 Constant used in :py:func:`compute_command` to compute the lateral thrust command of the drone
 
@@ -111,9 +111,6 @@ def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos:
                "rotation": 0.0,
                "grasper": 0}
 
-    if state == State.DONE.value:
-        return command
-
     if state == State.SAVE.value:
         command["grasper"] = 1
 
@@ -149,5 +146,5 @@ def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos:
         elif slowdown:
             command["forward"] *= -1
             command["lateral"] *= -1
-
+        # print(command)
         return command

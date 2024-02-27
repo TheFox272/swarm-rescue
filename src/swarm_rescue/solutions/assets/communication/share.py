@@ -24,6 +24,7 @@ def intersect_waypoints(waypoints: np.ndarray, other_waypoints: np.ndarray):
     waypoints[other_waypoints == 0] = 0
     # waypoints[(waypoints != 0) & (other_waypoints == NOGPS_WAYPOINT)] = NOGPS_WAYPOINT
 
+
 def intersect_bases(bases: List, other_bases: List):
     set_bases = set(map(tuple, bases))
     set_other_bases = set(map(tuple, other_bases))
