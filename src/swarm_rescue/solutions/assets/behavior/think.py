@@ -6,20 +6,20 @@ import math as m
 import tcod.path
 
 from swarm_rescue.solutions.assets.mapping.entity import Entity, bounded_variation
-from swarm_rescue.solutions.assets.movement.pathfinding import anticipate_pos, find_path
+from swarm_rescue.solutions.assets.movement.pathfinding import anticipate_pos, find_path, BASIC_WEIGHT, CLOUD_BONUS
 from swarm_rescue.solutions.assets.behavior.map_split import ZONE_SIZE, waypoint_pos, zone_split
 from swarm_rescue.solutions.assets.behavior.state import State
 
 # region local constants
 GRAB_DISTANCE = 28
 DROP_DISTANCE = 60
-EXPLORED_PATH_DISTANCE = 2
-ZONE_COMPLETION = 85
+EXPLORED_PATH_DISTANCE = 3
+ZONE_COMPLETION = 98
 VICTIM_RESCUED_NB = -2
 VICTIM_WAITING_NB = -1
 
-WAYPOINTS_SCAN = 8
-BASE_SCAN = 16
+WAYPOINTS_SCAN = 4
+BASE_SCAN = 8
 BELIEVE_WAIT = 2
 VICTIM_WAIT = 4
 
@@ -28,15 +28,15 @@ EXPLORED_WP_VALUE = 0
 MAX_BASES_SIZE = 120
 
 NOGPS_WAYPOINT = -1
-CLOSE_TO_BASE_PATH_LEN = 6
+CLOSE_TO_BASE_PATH_LEN = 8
 
 # endregion
 
 
 def next_waypoint(tile_pos, drone_speed, waypoints, waypoints_dims, tile_map_size, path_map, in_noGPSzone, entity_map):
-    anticipated_graph = tcod.path.SimpleGraph(cost=path_map, cardinal=1, diagonal=0)
+    anticipated_graph = tcod.path.SimpleGraph(cost=path_map, cardinal=1, diagonal=0, greed=BASIC_WEIGHT-CLOUD_BONUS)
     anticipated_pf = tcod.path.Pathfinder(anticipated_graph)
-    graph = tcod.path.SimpleGraph(cost=path_map, cardinal=1, diagonal=0)
+    graph = tcod.path.SimpleGraph(cost=path_map, cardinal=1, diagonal=0, greed=BASIC_WEIGHT-CLOUD_BONUS)
     pf = tcod.path.Pathfinder(graph)
 
     anticipated_pos = anticipate_pos(tile_pos, drone_speed, tile_map_size, entity_map)
@@ -162,16 +162,17 @@ def partially_explored(tile_pos, tile_map_size, entity_map, in_noGPSzone):
     """
     zone_area = ZONE_SIZE * ZONE_SIZE / 2
     zone_knowledge = zone_area
+    needed_knowledge = zone_area * ZONE_COMPLETION / 100
     for i in bounded_variation(tile_pos[0], ZONE_SIZE / 2, tile_map_size[0]):
-        for j in bounded_variation(tile_pos[1], ZONE_SIZE / 2 - tile_pos[0] + i, tile_map_size[1]):
+        for j in bounded_variation(tile_pos[1], ZONE_SIZE / 2 - abs(tile_pos[0] - i), tile_map_size[1]):
             if entity_map[i, j] == Entity.BASE.value:
                 zone_knowledge += 5
-            elif entity_map[i, j] == Entity.WALL.value:
-                zone_knowledge += 1
+            # elif entity_map[i, j] == Entity.WALL.value:
+            #     zone_knowledge -= 0.25
             elif ((entity_map[i, j] == Entity.CLOUD.value or (not in_noGPSzone and entity_map[i, j] == Entity.NOGPS.value)) and 0 <= i < tile_map_size[0] and 0 <= j <
                   tile_map_size[1]):
                 zone_knowledge -= 1
-                if zone_knowledge < zone_area * ZONE_COMPLETION / 100:
+                if zone_knowledge < needed_knowledge:
                     return False
     return True
 

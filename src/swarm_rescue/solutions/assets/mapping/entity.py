@@ -1,7 +1,7 @@
 from enum import Enum
 import numpy as np
 import numba as nb
-from typing import Tuple, List
+from typing import Tuple
 
 
 class Entity(Enum):
@@ -18,11 +18,6 @@ class Entity(Enum):
     BASE = 5  # an access to the base (= rescue center)
     KILL = 6
     SAFE = 7
-
-
-priority_table = {Entity.CLOUD.value: 0, Entity.VOID.value: 1, Entity.WALL.value: 1, Entity.NOCOM.value: 3, Entity.NOGPS.value: 4, Entity.BASE.value: 5, Entity.KILL.value: 2,
-                  Entity.SAFE.value: 4}
-priority_table = np.array(list(priority_table.values()))
 
 
 @nb.njit
@@ -125,8 +120,6 @@ def compare_entity(entity: np.int32, other_entity: np.int32):
         elif other_entity == Entity.KILL.value:
             return True
 
-    # return priority_table[entity] >= priority_table[other_entity]
-
 
 @nb.njit
 def max_entity(entity: np.int32, other_entity: np.int32):
@@ -141,7 +134,7 @@ def bounded_variation(x, variation, x_sup, x_inf=0):
     """
     returns a range a values around x so that it stays bounded by x_sup and x_inf
     """
-    return np.arange(max(int(x - variation), x_inf), min(int(x + variation), x_sup))
+    return np.arange(max(int(x - variation), x_inf), min(int(x + variation)+1, x_sup))
 
 
 @nb.njit

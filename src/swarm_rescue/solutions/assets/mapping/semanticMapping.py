@@ -13,11 +13,11 @@ from swarm_rescue.spg_overlay.entities.drone_distance_sensors import DroneSemant
 # region local constants
 VICTIM_DETECTION_MARGIN = m.ceil(3 * VICTIM_RADIUS / TILE_SIZE) + 1
 BASE_DETECTION_MARGIN = 0.5
-MIN_SEMANTIC_DISTANCE = 50
-DRONE_DETECTION_MARGIN = CLOSE_DRONE_DISTANCE * 1.1
-DRONE_TRACE_DETECTION_MARGIN = CLOSE_DRONE_DISTANCE / 5
+MIN_SEMANTIC_DISTANCE = 40
+DRONE_DETECTION_MARGIN = CLOSE_DRONE_DISTANCE * 1.0
+DRONE_TRACE_DETECTION_MARGIN = DRONE_DETECTION_MARGIN
 CLEAR_VALUE = - THRESHOLD_MAX / 3
-DRONE_IN_MEMORY_CYCLES = 10
+DRONE_IN_MEMORY_CYCLES = 2
 
 
 # endregion
@@ -65,8 +65,8 @@ def process_semantic(semantic_values, pos, tile_map_size, victims, state, bases,
                     add_entity(tile_target_x, tile_target_y, Entity.BASE.value, entity_map, tile_map_size)
                 if data.distance < distance_from_closest_base:
                     distance_from_closest_base = data.distance
-                # if data.distance > MIN_SEMANTIC_DISTANCE:
-                #     clear_view(pos, target_x, target_y, occupancy_map, tile_map_size, map_size)
+                if data.distance > MIN_SEMANTIC_DISTANCE:
+                    clear_view(pos, target_x, target_y, occupancy_map, tile_map_size, map_size)
 
             elif data.entity_type.value == DroneSemanticSensor.TypeEntity.DRONE.value:
                 closest_detected = next((drone for drone in list(detected_drones_traces.keys()) if m.dist((target_x, target_y), drone) <= DRONE_TRACE_DETECTION_MARGIN),
@@ -77,7 +77,9 @@ def process_semantic(semantic_values, pos, tile_map_size, victims, state, bases,
                 if min([m.dist(drone, [target_x, target_y]) for drone in dead_drones] + [m.inf]) > DRONE_DETECTION_MARGIN:
                     if data.distance < distance_from_closest_alive_drone and entity_map[tile_target_x, tile_target_y] != Entity.NOCOM.value:
                         distance_from_closest_alive_drone = data.distance
-            clear_view(pos, target_x, target_y, occupancy_map, tile_map_size, map_size)
+
+            if data.entity_type.value != DroneSemanticSensor.TypeEntity.RESCUE_CENTER.value:
+                clear_view(pos, target_x, target_y, occupancy_map, tile_map_size, map_size)
 
     return distance_from_closest_victim, distance_from_closest_base, distance_from_closest_alive_drone
 

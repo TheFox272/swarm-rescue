@@ -1,20 +1,19 @@
 import numba as nb
 import numpy as np
 import math as m
-from typing import List, Tuple
 
 from scipy.spatial.distance import cdist
 
+from swarm_rescue.solutions.assets.behavior.anti_kill_zone import CLOSE_DRONE_DISTANCE
 from swarm_rescue.solutions.assets.mapping.mapping_constants import TILE_SIZE
-from swarm_rescue.solutions.assets.mapping.semanticMapping import DRONE_DETECTION_MARGIN
 from swarm_rescue.solutions.assets.movement.pathfinding import DRONE_RUNOFF
 
 # region local constants
 STUCK_SPEED = 0.6
 STUCK_WAIT = 15
 PATH_TILE_TO_CHANGE = 2
-MAX_PATH_FORECAST = 4
-DRONE_SLOW_DISTANCE = DRONE_RUNOFF + 2
+MAX_PATH_FORECAST = 5
+DRONE_SLOW_DISTANCE = DRONE_RUNOFF
 # endregion
 
 
@@ -39,12 +38,12 @@ def slow_down(pos, path, detected_drones, dead_drones):
         return False
 
     detected_drones_array = np.asarray(detected_drones, dtype=np.float32).reshape(-1, 2)
-    # dead_drones_array = np.asarray(dead_drones, dtype=np.float32).reshape(-1, 2)  # Correction ici
+    dead_drones_array = np.asarray(dead_drones, dtype=np.float32).reshape(-1, 2)  # Correction ici
     forecast = min(len(path), MAX_PATH_FORECAST)
     path_array = np.asarray(path[:forecast], dtype=np.int32) * TILE_SIZE
     path_array = path_array.reshape(-1, 2)
 
-    detected_drones_array = np.array([drone for drone in detected_drones_array if not any(m.dist(drone, dead) <= DRONE_DETECTION_MARGIN for dead in dead_drones)])
+    detected_drones_array = np.array([drone for drone in detected_drones_array if not any(m.dist(drone, dead) <= CLOSE_DRONE_DISTANCE for dead in dead_drones_array)])
 
     if len(detected_drones_array) == 0:
         return False

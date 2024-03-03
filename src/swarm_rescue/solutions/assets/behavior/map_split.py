@@ -2,8 +2,6 @@ import numpy as np
 import numba as nb
 import math as m
 
-from swarm_rescue.solutions.assets.mapping.mapping_constants import TILE_SIZE
-
 # region local constants
 PROJECT_COEF = 0.3
 ZONE_SIZE = 10  # multiple of 2

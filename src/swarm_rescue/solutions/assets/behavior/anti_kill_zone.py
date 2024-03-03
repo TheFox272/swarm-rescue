@@ -1,16 +1,13 @@
-import numba as nb
-import numpy as np
-import math as m
-from typing import List, Tuple
 
-from swarm_rescue.spg_overlay.utils.constants import MAX_RANGE_SEMANTIC_SENSOR
+import math as m
+
 from swarm_rescue.solutions.assets.mapping.entity import add_entity, Entity
 from swarm_rescue.solutions.assets.mapping.mapping_constants import INV_TILE_SIZE, DRONE_RADIUS
 
 # region local constants
 SILENT_FORGET_FACTOR = 8  # the higher, the longer it takes to forget. Must be > 1
-CLOSE_DRONE_DISTANCE = DRONE_RADIUS * 2.2
-DEAD_THRESHOLD = 10
+CLOSE_DRONE_DISTANCE = DRONE_RADIUS * 2.1
+DEAD_THRESHOLD = 11
 DEAD_THRESHOLD *= SILENT_FORGET_FACTOR - 1
 KILL_RADIUS = 3
 NO_DEAD_RADIUS = 3

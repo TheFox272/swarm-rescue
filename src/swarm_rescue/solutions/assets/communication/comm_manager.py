@@ -1,8 +1,6 @@
 import numpy as np
 
-from solutions.assets.communication.comm_declarations import MsgType
-from typing import List, Tuple
-
+from swarm_rescue.solutions.assets.communication.comm_declarations import MsgType
 from swarm_rescue.solutions.assets.communication.share import intersect_waypoints, intersect_bases, intersect_occupancy, intersect_entity, intersect_victims
 from swarm_rescue.solutions.assets.behavior.think import MAX_BASES_SIZE
 from swarm_rescue.solutions.assets.mapping.mapping_constants import TILE_SIZE
@@ -94,8 +92,8 @@ def process_message(msg_type, data, alive_received, abandon_victim, id, waypoint
         case MsgType.ALIVE.value:
             alive_received.append(data)
             if data[0] == DONE_DRONE_ID:
-                x = int(data[1] * TILE_SIZE)
-                y = int(data[2] * TILE_SIZE)
+                x = data[1] * TILE_SIZE
+                y = data[2] * TILE_SIZE
                 dead_drones.append((x, y))
 
         case MsgType.SHARE_WAYPOINTS.value:

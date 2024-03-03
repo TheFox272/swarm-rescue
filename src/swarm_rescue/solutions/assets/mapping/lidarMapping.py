@@ -38,7 +38,7 @@ def process_lidar(occupancy_map, size_area_world, resolution, tile_map_size, lid
     cos_rays = np.cos(lidar_angles + ori)
     sin_rays = np.sin(lidar_angles + ori)
 
-    max_range = MAX_RANGE_LIDAR_SENSOR * 0.7   # reduce the range to about semantic's range
+    max_range = MAX_RANGE_LIDAR_SENSOR * 0.66   # reduce the range to about semantic's range
 
     # For empty zones
     # points_x and point_y contains the border of detected empty zone

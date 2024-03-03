@@ -17,6 +17,7 @@ from maps.map_medium_01 import MyMapMedium01
 from maps.map_medium_02 import MyMapMedium02
 
 from solutions.my_drone_eval import MyDroneEval
+from solutions.myFirstDrone import MyFirstDrone
 
 
 class MyDrone(MyDroneEval):

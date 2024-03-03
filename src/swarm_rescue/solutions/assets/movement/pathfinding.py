@@ -4,13 +4,12 @@ import tcod.path
 import numba as nb
 from typing import List, Tuple
 
-from swarm_rescue.solutions.assets.behavior.anti_kill_zone import CLOSE_DRONE_DISTANCE
 from swarm_rescue.solutions.assets.mapping.entity import Entity, add_entity, bounded_variation
-from swarm_rescue.solutions.assets.mapping.mapping_constants import INV_TILE_SIZE, TILE_SIZE
+from swarm_rescue.solutions.assets.mapping.mapping_constants import TILE_SIZE
 from swarm_rescue.solutions.assets.behavior.state import State
 
 # region local constants
-BASIC_WEIGHT = 2
+BASIC_WEIGHT = 3
 """
 Constant used in :py:func:`compute_path_map`, corresponding to the base weight of the tiles of 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`.
@@ -18,7 +17,7 @@ Constant used in :py:func:`compute_path_map`, corresponding to the base weight o
 :type: int
 :domain: [:py:data:`CLOUD_BONUS` + 1, inf]
 """
-WALL_WEIGHT = BASIC_WEIGHT * 18
+WALL_WEIGHT = BASIC_WEIGHT * 13
 """
 Constant used in :py:func:`f_runoff`, corresponding to the additional weight that the drone will put on a wall in his 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map`. In other words, how much the drone will avoid the surroundings of a wall.
@@ -26,7 +25,7 @@ Constant used in :py:func:`f_runoff`, corresponding to the additional weight tha
 :type: int
 :domain: [0, inf]
 """
-WALL_RUNOFF = 4
+WALL_RUNOFF = 3
 """
 Constant used in :py:func:`f_runoff`, corresponding to how far a wall will impact the weights of his surroundings tiles in the 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map` of the drone. In other words, the distance that the drone will try to take 
@@ -35,14 +34,14 @@ when moving alongside a wall.
 :type: int
 :domain: [1, inf]
 """
-DRONE_RUNOFF = 1
+DRONE_RUNOFF = 2
 """
 
 
 :type: int
 :domain: [1, inf]
 """
-CLOUD_BONUS = BASIC_WEIGHT // 2
+CLOUD_BONUS = 1
 """
 Constant used in :py:func:`compute_path_map`, corresponding to the bonus weight of the cloud tiles of 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map` when the drone is exploring. This allows for more exploration from the drone, 
@@ -51,8 +50,8 @@ instead of always taking the same paths.
 :type: int
 :domain: [0, :py:data:`BASE_WEIGHT` - 1]
 """
+# PRUDENCE = SAFE_PRUDENCE
 SAFE_PRUDENCE = BASIC_WEIGHT * 24
-PRUDENCE = SAFE_PRUDENCE
 """
 Constant used in :py:func:`compute_path_map`, corresponding to the malus weight of the cloud tiles of 
 :py:attr:`~swarm_rescue.solutions.myFirstDrone.MyFirstDrone.path_map` when the drone is carrying a victim. It avoids the drone from going into a 
@@ -94,15 +93,15 @@ f_runoff = nb.njit(lambda distance, weight, runoff: np.int64(round(BASIC_WEIGHT 
 @nb.njit
 def is_drone_close(x, y, detected_drones):
     distances = np.sqrt((x - detected_drones[:, 0])**2 + (y - detected_drones[:, 1])**2)
-    return np.any(distances <= CLOSE_DRONE_DISTANCE)
+    return np.any(distances < TILE_SIZE)
 
 
 @nb.njit
-def weight_propagate(x, y, runoff, weight, tile_map_size, path_map):
+def weight_propagate(x, y, runoff, weight, tile_map_size, path_map, entity_map):
     for i in bounded_variation(x, runoff, tile_map_size[0]):
         for j in bounded_variation(y, runoff, tile_map_size[1]):
             distance = m.sqrt((x - i) ** 2 + (y - j) ** 2)
-            if path_map[i, j] != 0 and distance <= runoff:
+            if path_map[i, j] != 0 and entity_map[i, j] != Entity.CLOUD.value and distance <= runoff:
                 path_map[i, j] = max(path_map[i, j], f_runoff(distance, weight, runoff))
 
 
@@ -138,18 +137,13 @@ def compute_path_map(tile_map_size: Tuple[np.int32, np.int32], occupancy_map: np
                     weight = KILL_RELUCTANCE
                 else:
                     weight = WALL_WEIGHT
-                weight_propagate(x, y, runoff, weight, tile_map_size, path_map)
+                weight_propagate(x, y, runoff, weight, tile_map_size, path_map, entity_map)
             elif tile_is_drone:
                 add_entity(x, y, Entity.VOID.value, entity_map, tile_map_size, DRONE_ZONE)
-                runoff = DRONE_RUNOFF
-                weight = DRONE_RELUCTANCE
-                weight_propagate(x, y, runoff, weight, tile_map_size, path_map)
+                weight_propagate(x, y, DRONE_RUNOFF, DRONE_RELUCTANCE, tile_map_size, path_map, entity_map)
             elif path_map[x, y] != 0:
-                if entity_map[x, y] == Entity.CLOUD.value:
-                    if state == State.SAVE.value:
-                        path_map[x, y] += PRUDENCE
-                    else:
-                        path_map[x, y] -= CLOUD_BONUS
+                if entity_map[x, y] == Entity.CLOUD.value and state != State.SAVE.value:
+                    path_map[x, y] = BASIC_WEIGHT - CLOUD_BONUS
                 elif state == State.SAVE.value and entity_map[x, y] not in [Entity.SAFE.value, Entity.NOCOM.value, Entity.NOGPS.value]:
                     path_map[x, y] += SAFE_PRUDENCE
 

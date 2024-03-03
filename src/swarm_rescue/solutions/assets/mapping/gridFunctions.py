@@ -1,10 +1,7 @@
 # Functions copied from utils/grid.py
 
 import math
-
 import numpy as np
-
-from swarm_rescue.spg_overlay.utils.pose import Pose
 
 def _conv_world_to_grid(x_world, y_world, size_area_world, resolution):
     """

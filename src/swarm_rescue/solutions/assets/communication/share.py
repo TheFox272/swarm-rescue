@@ -2,9 +2,7 @@ from typing import List
 import numpy as np
 import numba as nb
 
-from solutions.assets.communication.comm_declarations import MsgType
-
-from swarm_rescue.solutions.assets.behavior.think import VICTIM_RESCUED_NB, NOGPS_WAYPOINT
+from swarm_rescue.solutions.assets.behavior.think import VICTIM_RESCUED_NB
 from swarm_rescue.solutions.assets.mapping.entity import max_entity
 from swarm_rescue.solutions.assets.mapping.semanticMapping import VICTIM_DETECTION_MARGIN
 

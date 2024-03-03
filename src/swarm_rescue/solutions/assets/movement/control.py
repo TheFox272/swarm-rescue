@@ -4,10 +4,9 @@ from typing import List, Tuple
 import numba as nb
 import numpy as np
 
-from swarm_rescue.solutions.assets.mapping.mapping_constants import TILE_SIZE
-from swarm_rescue.solutions.assets.movement.pathfinding import BASIC_WEIGHT, CLOUD_BONUS
+from swarm_rescue.solutions.assets.movement.pathfinding import BASIC_WEIGHT
 from swarm_rescue.solutions.assets.behavior.state import State
-from swarm_rescue.solutions.assets.behavior.think import DROP_DISTANCE, GRAB_DISTANCE
+from swarm_rescue.solutions.assets.behavior.think import DROP_DISTANCE
 
 # region local constants
 FORESEE = 10
@@ -18,14 +17,14 @@ consideration in :py:func:`compute_command`
 :type: int
 :domain: [1, inf]
 """
-K_FOR = 0.4
+K_FOR = 0.35
 """
 Constant used in :py:func:`compute_command` to compute the forward thrust command of the drone
 
 :type: float
 :domain: [0, 1]
 """
-K_LAT = 0.4
+K_LAT = 0.35
 """
 Constant used in :py:func:`compute_command` to compute the lateral thrust command of the drone
 
@@ -134,7 +133,10 @@ def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos:
             grasp_angle = 0
         else:
             grasp_angle = m.pi
-        rot_diff = signed_angle(path_angle - tile_pos[2] - victim_angle - grasp_angle)
+
+        rot_diff = 0.
+        if state == State.SAVE.value:
+            rot_diff = signed_angle(path_angle - tile_pos[2] - victim_angle - grasp_angle)
 
         command["forward"] = min(max(-1, forward_diff * K_FOR), 1)
         command["lateral"] = min(max(-1, lateral_diff * K_LAT), 1)
@@ -146,5 +148,5 @@ def compute_command(path: List[Tuple[int, int]], path_map: np.ndarray, tile_pos:
         elif slowdown:
             command["forward"] *= -1
             command["lateral"] *= -1
-        # print(command)
+        # print(f"\r{command}", end="")
         return command

@@ -3,35 +3,29 @@ import os
 import sys
 from typing import Optional
 
-from time import time  # to test
-
 import arcade  # for drawing
 import numpy as np
-from scipy.spatial.distance import cdist
 
-from swarm_rescue.solutions.assets.behavior.anti_kill_zone import detect_kills, CLOSE_DRONE_DISTANCE
+from swarm_rescue.solutions.assets.behavior.anti_kill_zone import detect_kills
 from swarm_rescue.solutions.assets.communication.comm_declarations import MsgType
 from swarm_rescue.solutions.assets.communication.comm_manager import compute_received_com, create_msg, DONE_DRONE_ID
 from swarm_rescue.solutions.assets.mapping.entity import Entity, add_entity
 from swarm_rescue.solutions.assets.movement.avoid import slow_down
 from swarm_rescue.solutions.assets.movement.stuck import stuck_manager
-
-# This line add, to sys.path, the path to parent path of this file
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from swarm_rescue.spg_overlay.entities.drone_abstract import DroneAbstract
 from swarm_rescue.spg_overlay.utils.misc_data import MiscData
-from swarm_rescue.solutions.assets.movement.pathfinding import find_path, compute_path_map, anticipate_pos, DRONE_ZONE
+from swarm_rescue.solutions.assets.movement.pathfinding import find_path, compute_path_map, anticipate_pos
 from swarm_rescue.solutions.assets.movement.control import compute_command
 from swarm_rescue.solutions.assets.mapping.lidarMapping import process_lidar
-from swarm_rescue.solutions.assets.mapping.semanticMapping import process_semantic, DRONE_IN_MEMORY_CYCLES
+from swarm_rescue.solutions.assets.mapping.semanticMapping import process_semantic
 from swarm_rescue.solutions.assets.mapping.mapping_constants import TILE_SIZE
 from swarm_rescue.solutions.assets.behavior.state import State
-from swarm_rescue.solutions.assets.behavior.map_split import zone_split, waypoint_pos, init_zone_split
-from swarm_rescue.solutions.assets.movement.pathfinding import BASIC_WEIGHT, WALL_WEIGHT
-from swarm_rescue.solutions.assets.behavior.think import compute_behavior, is_defined, undefined_index, undefined_target, undefined_waypoint, target_is_defined, NOGPS_WAYPOINT
+from swarm_rescue.solutions.assets.behavior.map_split import waypoint_pos, init_zone_split
+from swarm_rescue.solutions.assets.movement.pathfinding import BASIC_WEIGHT
+from swarm_rescue.solutions.assets.behavior.think import compute_behavior, undefined_index, undefined_target, undefined_waypoint, target_is_defined, NOGPS_WAYPOINT
 
 # region local constants
-SHARE_WAYPOINTS_WAIT = 64
+SHARE_WAYPOINTS_WAIT = 32
 SHARE_BASES_WAIT = 16
 SHARE_OCCUPANCY_WAIT = 16
 SHARE_ENTITY_WAIT = 16
@@ -39,7 +33,7 @@ SHARE_VICTIMS_WAIT = 4
 CONFIDENCE_RADIUS = 3
 SAFE_CONFIDENCE_RADIUS = 3
 
-DONE_PATH_LEN = 4
+DONE_PATH_LEN = 30
 
 NO_SAFE_ON_BASE_DISTANCE = TILE_SIZE * 4
 
@@ -59,6 +53,8 @@ class MyFirstDrone(DroneAbstract):
                          misc_data=misc_data,
                          **kwargs)
         self.drone_id = identifier
+        global DONE_PATH_LEN
+        DONE_PATH_LEN += identifier * 10
         # endregion
         # region pathfinding init
         self.initial_tile_pos = np.zeros(2, dtype=np.int32)
@@ -269,32 +265,38 @@ class MyFirstDrone(DroneAbstract):
             else:
                 self.timers['noGPS'] = 0
             if self.timers['noGPS'] < noGPS_time_limit:
-                self.comm_timers["share_waypoints"] += 1
+                if "share_waypoints" in self.comm_timers:
+                    self.comm_timers["share_waypoints"] += 1
                 if "share_bases" in self.comm_timers:
                     self.comm_timers["share_bases"] += 1
-                self.comm_timers["share_occupancy"] += 1
-                self.comm_timers["share_entity"] += 1
+                if "share_occpancy" in self.comm_timers:
+                    self.comm_timers["share_occupancy"] += 1
+                if "share_entity" in self.comm_timers:
+                    self.comm_timers["share_entity"] += 1
                 if len(self.victims) != 0:
                     self.comm_timers["share_victims"] += 1
             else:
-                self.comm_timers["share_waypoints"] -= SHARE_WAYPOINTS_WAIT
-                self.comm_timers["share_occupancy"] -= SHARE_OCCUPANCY_WAIT
-                self.comm_timers["share_entity"] -= SHARE_ENTITY_WAIT
+                if "share_waypoints" in self.comm_timers:
+                    del self.comm_timers["share_waypoints"]
+                if "share_occpancy" in self.comm_timers:
+                    del self.comm_timers["share_occupancy"]
+                if "share_entity" in self.comm_timers:
+                    del self.comm_timers["share_entity"]
 
             self.to_send.append(create_msg(MsgType.ALIVE.value, 'all', [self.drone_id, self.pos[0], self.pos[1]], self.drone_id, self.msg_sent))
-            if self.comm_timers["share_waypoints"] > SHARE_WAYPOINTS_WAIT:
+            if "share_waypoints" in self.comm_timers and self.comm_timers["share_waypoints"] > SHARE_WAYPOINTS_WAIT:
                 self.to_send.append(create_msg(MsgType.SHARE_WAYPOINTS.value, 'all', self.waypoints, self.drone_id, self.msg_sent))
                 self.comm_timers["share_waypoints"] = 0
             if "share_bases" in self.comm_timers and self.comm_timers["share_bases"] > SHARE_BASES_WAIT:
                 self.to_send.append(create_msg(MsgType.SHARE_BASES.value, 'all', self.bases, self.drone_id, self.msg_sent))
                 del self.comm_timers["share_bases"]
-            if self.comm_timers["share_occupancy"] > SHARE_OCCUPANCY_WAIT:
+            if "share_occupancy" in self.comm_timers and self.comm_timers["share_occupancy"] > SHARE_OCCUPANCY_WAIT:
                 self.to_send.append(create_msg(MsgType.SHARE_OCCUPANCY_MAP.value, 'all', self.occupancy_map, self.drone_id, self.msg_sent))
                 self.comm_timers["share_occupancy"] = 0
-            if self.comm_timers["share_entity"] > SHARE_ENTITY_WAIT:
+            if "share_entity" in self.comm_timers and self.comm_timers["share_entity"] > SHARE_ENTITY_WAIT:
                 self.to_send.append(create_msg(MsgType.SHARE_ENTITY_MAP.value, 'all', self.entity_map, self.drone_id, self.msg_sent))
                 self.comm_timers["share_entity"] = 0
-            if self.comm_timers["share_victims"] > SHARE_VICTIMS_WAIT:
+            if "share_victims" in self.comm_timers and self.comm_timers["share_victims"] > SHARE_VICTIMS_WAIT:
                 self.to_send.append(create_msg(MsgType.SHARE_VICTIMS.value, 'all', self.victims, self.drone_id, self.msg_sent))
                 self.comm_timers["share_victims"] = 0
 
@@ -325,8 +327,8 @@ class MyFirstDrone(DroneAbstract):
         if self.in_SAFEzone:
             if self.distance_from_closest_base > NO_SAFE_ON_BASE_DISTANCE:
                 add_entity(self.tile_pos[0], self.tile_pos[1], Entity.SAFE.value, self.entity_map, self.tile_map_size, SAFE_CONFIDENCE_RADIUS)
-            else:
-                add_entity(self.tile_pos[0], self.tile_pos[1], Entity.SAFE.value, self.entity_map, self.tile_map_size, 0)
+            # else:
+            #     add_entity(self.tile_pos[0], self.tile_pos[1], Entity.SAFE.value, self.entity_map, self.tile_map_size, 0)
         elif self.state != State.BOOT.value:
             add_entity(self.tile_pos[0], self.tile_pos[1], Entity.VOID.value, self.entity_map, self.tile_map_size, SAFE_CONFIDENCE_RADIUS)
             if self.in_noGPSzone:
